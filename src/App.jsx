@@ -216,20 +216,39 @@ function settleOneTick(startBoard) {
   return { board, moved: true, bonus };
 }
 
-function BlockTitle({ scale = 1 }) {
-  const cell = 6 * scale;
+function BlockTitle() {
+  const letters = {
+    Q: ["111", "101", "111", "001"],
+    U: ["101", "101", "101", "111"],
+    A: ["010", "101", "111", "101"],
+    D: ["110", "101", "101", "110"],
+    E: ["111", "110", "100", "111"],
+    S: ["111", "100", "111", "001", "111"],
+    T: ["111", "010", "010", "010"],
+    R: ["110", "101", "110", "101"],
+    I: ["111", "010", "010", "111"],
+  };
+
+  const word = "QUADESTRIS";
 
   return (
-    <div style={{ display:'flex', justifyContent:'center', gap:`${2 * scale}px`, marginBottom:`${8 * scale}px` }} aria-label="Quadestris">
+    <div style={{ display:'flex', justifyContent:'center', gap:'2px', marginBottom:'8px' }} aria-label="Quadestris">
       {word.split("").map((letter, letterIndex) => (
-        <div key={`${letter}-${letterIndex}`} style={{ display:'grid', gap:`${2 * scale}px`, gridTemplateRows: `repeat(${letters[letter].length}, ${cell}px)` }}>
+        <div
+          key={`${letter}-${letterIndex}`}
+          style={{ display:'grid', gap:'2px', gridTemplateRows: `repeat(${letters[letter].length}, 6px)` }}
+        >
           {letters[letter].map((row, y) => (
-            <div key={y} style={{ display:'flex', gap:`${2 * scale}px` }}>
+            <div key={y} style={{ display:'flex', gap:'2px' }}>
               {row.split("").map((cell, x) => (
                 <div
                   key={x}
-                  style={{ width:`${cell}px`, height:`${cell}px`, borderRadius:`${Math.max(1, scale)}px`, background: cell === "1" ? COLORS[(letterIndex + x + y) % COLORS.length] : 'transparent' }}
-                  
+                  style={{
+                    width:'6px',
+                    height:'6px',
+                    borderRadius:'1px',
+                    background: cell === "1" ? COLORS[(letterIndex + x + y) % COLORS.length] : 'transparent'
+                  }}
                 />
               ))}
             </div>
@@ -583,7 +602,7 @@ export default function FourDirectionTetris() {
             </div>
 
             <div style={{ textAlign:'center', minHeight:'64px', paddingTop:'4px' }}>
-            <BlockTitle scale={1.2} />
+            <BlockTitle />
             <p style={{ color:'#cbd5e1', fontSize:'14px', margin:'6px 0 0' }}>Build from the centre. Clear 4×4 blocks. Do not breach the red perimeter.</p>
             </div>
 
@@ -599,7 +618,7 @@ export default function FourDirectionTetris() {
           {screen === "title" && (
             <div style={{ position:'absolute', inset:'24px', top:'96px', zIndex:30, background:'linear-gradient(180deg, rgba(15,23,42,0.98), rgba(2,6,23,0.98))', border:'1px solid rgba(148,163,184,0.24)', borderRadius:'22px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'20px', textAlign:'center', boxShadow:'0 24px 70px rgba(0,0,0,0.62)' }}>
               <div style={{ marginBottom:'20px' }}>
-                <BlockTitle scale={2.5} />
+                <BlockTitle />
               </div>
               <div style={{ color:'#cbd5e1', fontSize:'14px', maxWidth:'390px', padding:'0 18px', lineHeight:1.55 }}>
                 Build from the centre. Clear 4×4 blocks. Survive the accelerating fall from four directions.
