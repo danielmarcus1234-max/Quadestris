@@ -582,19 +582,23 @@ export default function FourDirectionTetris() {
     <div style={{ minHeight:'100vh', color:'white', display:'flex', alignItems:'center', justifyContent:'center', padding:'28px', width:'100%', background:'radial-gradient(circle at top, #1e293b 0%, #0f172a 42%, #020617 100%)', fontFamily:'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif' }}>
       <div style={{ margin:'0 auto', width:'min-content', background:'linear-gradient(180deg, rgba(15,23,42,0.96), rgba(2,6,23,0.98))', border:'1px solid rgba(148,163,184,0.25)', borderRadius:'24px', padding:'24px', boxShadow:'0 30px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06)' }}>
         <div style={{ display:'grid', gap:'18px', position:'relative' }}>
-          <div style={{ position:'absolute', left:'18px', top:'18px', textAlign:'left', zIndex:10, background:'rgba(15,23,42,0.82)', border:'1px solid rgba(148,163,184,0.22)', borderRadius:'14px', padding:'10px 12px', minWidth:'126px', backdropFilter:'blur(10px)' }}>
-            <div style={{ fontSize:'11px', letterSpacing:'0.14em', textTransform:'uppercase', color:'#94a3b8' }}>Score</div>
-            <div style={{ fontSize:'28px', fontWeight:800, lineHeight:1 }}>{Math.floor(score)}</div>
-            <div style={{ fontSize:'12px', color:'#cbd5e1', marginTop:'4px' }}>Level {level}</div>
-            <div style={{ fontSize:'12px', color:'#6ee7b7', minHeight:'16px', marginTop:'2px' }}>{scoreFlash}</div>
-            <div style={{ height:'1px', background:'rgba(148,163,184,0.16)', margin:'8px 0' }} />
-            <div style={{ fontSize:'10px', color:'#64748b' }}>4x4 clear = 100 × level</div>
-            <div style={{ fontSize:'10px', color:'#64748b' }}>Loose block = 10 × level</div>
-          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'160px auto 160px', alignItems:'center', gap:'14px' }}>
+            <div style={{ textAlign:'left', background:'rgba(15,23,42,0.82)', border:'1px solid rgba(148,163,184,0.22)', borderRadius:'14px', padding:'10px 12px', minWidth:'126px', backdropFilter:'blur(10px)' }}>
+              <div style={{ fontSize:'11px', letterSpacing:'0.14em', textTransform:'uppercase', color:'#94a3b8' }}>Score</div>
+              <div style={{ fontSize:'28px', fontWeight:800, lineHeight:1 }}>{Math.floor(score)}</div>
+              <div style={{ fontSize:'12px', color:'#cbd5e1', marginTop:'4px' }}>Level {level}</div>
+              <div style={{ fontSize:'12px', color:'#6ee7b7', minHeight:'16px', marginTop:'2px' }}>{scoreFlash}</div>
+              <div style={{ height:'1px', background:'rgba(148,163,184,0.16)', margin:'8px 0' }} />
+              <div style={{ fontSize:'10px', color:'#64748b' }}>4x4 clear = 100 × level</div>
+              <div style={{ fontSize:'10px', color:'#64748b' }}>Loose block = 10 × level</div>
+            </div>
 
-          <div style={{ textAlign:'center', minHeight:'64px', paddingTop:'4px' }}>
+            <div style={{ textAlign:'center', minHeight:'64px', paddingTop:'4px' }}>
             <BlockTitle />
             <p style={{ color:'#cbd5e1', fontSize:'14px', margin:'6px 0 0' }}>Build from the centre. Clear 4×4 blocks. Do not breach the red perimeter.</p>
+            </div>
+
+            <div />
           </div>
 
           {levelMessage && (
@@ -605,7 +609,9 @@ export default function FourDirectionTetris() {
 
           {screen === "title" && (
             <div style={{ position:'absolute', inset:'24px', top:'96px', zIndex:30, background:'linear-gradient(180deg, rgba(15,23,42,0.98), rgba(2,6,23,0.98))', border:'1px solid rgba(148,163,184,0.24)', borderRadius:'22px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'20px', textAlign:'center', boxShadow:'0 24px 70px rgba(0,0,0,0.62)' }}>
-              <BlockTitle />
+              <div style={{ transform:'scale(1.75)', marginBottom:'20px' }}>
+                <BlockTitle />
+              </div>
               <div style={{ color:'#cbd5e1', fontSize:'14px', maxWidth:'390px', padding:'0 18px', lineHeight:1.55 }}>
                 Build from the centre. Clear 4×4 blocks. Survive the accelerating fall from four directions.
               </div>
