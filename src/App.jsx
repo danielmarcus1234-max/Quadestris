@@ -3,8 +3,8 @@ import React, { useEffect, useRef, useState } from "react";
 
 const GRID = 35;
 const CELL = 16;
-const START_SPEED = 650;
-const MIN_SPEED = 75;
+const START_SPEED = 720;
+const MIN_SPEED = 38;
 const CENTRE = Math.floor(GRID / 2);
 const SAFE_MIN = 2;
 const SAFE_MAX = GRID - 3;
@@ -379,6 +379,8 @@ export default function FourDirectionTetris() {
 
   function lockPiece(p = piece) {
     if (!p) return;
+
+    addScore(10, "land");
     const merged = merge(board, p);
     const result = clearMatches(merged);
     setBoard(merged);
@@ -507,7 +509,8 @@ export default function FourDirectionTetris() {
   });
 
   useEffect(() => {
-    const id = setInterval(step, Math.max(MIN_SPEED, START_SPEED - Math.floor((level - 1) * 95)));
+    const speed = Math.max(MIN_SPEED, Math.floor(START_SPEED * Math.pow(0.78, level - 1)));
+    const id = setInterval(step, speed);
     return () => clearInterval(id);
   });
 
@@ -576,21 +579,22 @@ export default function FourDirectionTetris() {
   }, [board, piece, gameOver, failReason, animating, flashKeys, screen, countdown]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
-      <div style={{ background:'#0f172a', border:'1px solid #334155', borderRadius:'16px', padding:'24px', boxShadow:'0 20px 40px rgba(0,0,0,0.4)' }}>
-        <div style={{ display:'grid', gap:'16px', position:'relative' }}>
-          <div className="absolute left-6 top-6 text-left z-10">
-            <div className="text-sm text-slate-400">Score</div>
-            <div className="text-2xl font-bold">{Math.floor(score)}</div>
-            <div className="text-xs text-slate-400">Level {level}</div>
-            <div className="text-xs text-emerald-300 min-h-[16px]">{scoreFlash}</div>
-            <div className="text-[10px] text-slate-500 mt-1">4x4 clear = 100 × level</div>
-            <div className="text-[10px] text-slate-500">Loose block = 10 × level</div>
+    <div style={{ minHeight:'100vh', color:'white', display:'flex', alignItems:'center', justifyContent:'center', padding:'28px', width:'100%', background:'radial-gradient(circle at top, #1e293b 0%, #0f172a 42%, #020617 100%)', fontFamily:'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif' }}>
+      <div style={{ margin:'0 auto', width:'min-content', background:'linear-gradient(180deg, rgba(15,23,42,0.96), rgba(2,6,23,0.98))', border:'1px solid rgba(148,163,184,0.25)', borderRadius:'24px', padding:'24px', boxShadow:'0 30px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06)' }}>
+        <div style={{ display:'grid', gap:'18px', position:'relative' }}>
+          <div style={{ position:'absolute', left:'18px', top:'18px', textAlign:'left', zIndex:10, background:'rgba(15,23,42,0.82)', border:'1px solid rgba(148,163,184,0.22)', borderRadius:'14px', padding:'10px 12px', minWidth:'126px', backdropFilter:'blur(10px)' }}>
+            <div style={{ fontSize:'11px', letterSpacing:'0.14em', textTransform:'uppercase', color:'#94a3b8' }}>Score</div>
+            <div style={{ fontSize:'28px', fontWeight:800, lineHeight:1 }}>{Math.floor(score)}</div>
+            <div style={{ fontSize:'12px', color:'#cbd5e1', marginTop:'4px' }}>Level {level}</div>
+            <div style={{ fontSize:'12px', color:'#6ee7b7', minHeight:'16px', marginTop:'2px' }}>{scoreFlash}</div>
+            <div style={{ height:'1px', background:'rgba(148,163,184,0.16)', margin:'8px 0' }} />
+            <div style={{ fontSize:'10px', color:'#64748b' }}>4x4 clear = 100 × level</div>
+            <div style={{ fontSize:'10px', color:'#64748b' }}>Loose block = 10 × level</div>
           </div>
 
-          <div className="text-center min-h-[54px]">
+          <div style={{ textAlign:'center', minHeight:'64px', paddingTop:'4px' }}>
             <BlockTitle />
-            <p className="text-slate-300 text-sm">Pieces fall toward the central plus anchor. They only fail when they breach the barrier.</p>
+            <p style={{ color:'#cbd5e1', fontSize:'14px', margin:'6px 0 0' }}>Build from the centre. Clear 4×4 blocks. Do not breach the red perimeter.</p>
           </div>
 
           {levelMessage && (
@@ -600,17 +604,17 @@ export default function FourDirectionTetris() {
           )}
 
           {screen === "title" && (
-            <div className="absolute inset-6 top-24 z-30 bg-slate-950/95 border border-slate-700 rounded-2xl flex flex-col items-center justify-center gap-5 text-center">
+            <div style={{ position:'absolute', inset:'24px', top:'96px', zIndex:30, background:'linear-gradient(180deg, rgba(15,23,42,0.98), rgba(2,6,23,0.98))', border:'1px solid rgba(148,163,184,0.24)', borderRadius:'22px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'20px', textAlign:'center', boxShadow:'0 24px 70px rgba(0,0,0,0.62)' }}>
               <BlockTitle />
-              <div className="text-slate-300 text-sm max-w-sm px-4">
-                Build from the centre. Clear 4x4 blocks. Survive the accelerating fall from four directions.
+              <div style={{ color:'#cbd5e1', fontSize:'14px', maxWidth:'390px', padding:'0 18px', lineHeight:1.55 }}>
+                Build from the centre. Clear 4×4 blocks. Survive the accelerating fall from four directions.
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-slate-400">Start level</span>
+              <div style={{ display:'flex', alignItems:'center', gap:'12px', background:'rgba(30,41,59,0.65)', border:'1px solid rgba(148,163,184,0.18)', borderRadius:'14px', padding:'10px 14px' }}>
+                <span style={{ fontSize:'13px', color:'#94a3b8' }}>Start level</span>
                 <select
                   value={selectedLevel}
                   onChange={e => setSelectedLevel(Number(e.target.value))}
-                  className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-white"
+                  style={{ background:'#1e293b', border:'1px solid #475569', borderRadius:'10px', padding:'8px 12px', color:'white' }}
                 >
                   {[1,2,3,4,5,6,7,8,9].map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
@@ -623,19 +627,19 @@ export default function FourDirectionTetris() {
             ref={canvasRef}
             width={GRID * CELL}
             height={GRID * CELL}
-            className="rounded-xl border border-slate-700 bg-slate-950"
+            style={{ borderRadius:'18px', border:'1px solid rgba(148,163,184,0.32)', background:'#020617', boxShadow:'0 18px 50px rgba(0,0,0,0.45)' }}
           />
 
-          <div className="grid grid-cols-2 gap-2 text-sm text-slate-300">
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', fontSize:'13px', color:'#cbd5e1', background:'rgba(15,23,42,0.55)', border:'1px solid rgba(148,163,184,0.16)', borderRadius:'16px', padding:'12px' }}>
             <div>← / → / WASD: relative movement</div>
             <div>Space: hard drop</div>
-            <div>4x4 squares clear</div>
+            <div>4×4 squares clear</div>
             <div>No line clears</div>
             <div>Loose blocks fall inward</div>
             <div>Lost loose blocks give points</div>
           </div>
 
-          <div className="flex gap-2">
+          <div style={{ display:'flex', gap:'10px', justifyContent:'center' }}>
             <button onClick={resetToTitle} style={{ padding:'10px 18px', borderRadius:'12px', background:'#334155', color:'white', border:'none', cursor:'pointer' }}>Title Screen</button>
             <button onClick={startGame} style={{ padding:'10px 18px', borderRadius:'12px', background:'#2563eb', color:'white', border:'none', cursor:'pointer' }}>Restart</button>
             <button onClick={() => setPaused(p => !p)} style={{ padding:'10px 18px', borderRadius:'12px', background:'#475569', color:'white', border:'none', cursor:'pointer' }}>
