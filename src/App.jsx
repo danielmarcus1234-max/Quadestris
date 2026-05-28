@@ -11,6 +11,9 @@ const SAFE_MAX = GRID - 3;
 const CORE_COLOR = "#f8fafc";
 const FLASH_MS = 160;
 const SETTLE_TICK_MS = 45;
+const MULTIPLIER_DURATION_MS = 20000;
+const POWERUP_TURNS = 6;
+const MAX_SCORE_MULTIPLIER = 32;
 
 const SHAPES = [
   [[1, 1, 1, 1]],
@@ -247,7 +250,7 @@ function BlockTitle() {
                     width:'6px',
                     height:'6px',
                     borderRadius:'1px',
-                    background: cell === "1" ? COLORS[(letterIndex + x + y) % COLORS.length] : 'transparent'
+                    background: cell === "1" ? COLORS[letterIndex % COLORS.length] : 'transparent'
                   }}
                 />
               ))}
@@ -266,6 +269,7 @@ export default function FourDirectionTetris() {
   const [score, setScore] = useState(0);
   const [level, setLevel] = useState(1);
   const [selectedLevel, setSelectedLevel] = useState(1);
+  const [gameMode, setGameMode] = useState("classic");
   const [screen, setScreen] = useState("title");
   const [countdown, setCountdown] = useState(null);
   const [gameOver, setGameOver] = useState(false);
@@ -275,6 +279,12 @@ export default function FourDirectionTetris() {
   const [flashKeys, setFlashKeys] = useState(new Set());
   const [levelMessage, setLevelMessage] = useState("");
   const [scoreFlash, setScoreFlash] = useState("");
+  const [scoreMultiplier, setScoreMultiplier] = useState(1);
+  const [powerUps, setPowerUps] = useState([]);
+  const [multiplierPopup, setMultiplierPopup] = useState("");
+  const [destroyedPiece, setDestroyedPiece] = useState(null);
+  const [hasExtraLife, setHasExtraLife] = useState(false);
+  const [screenFlash, setScreenFlash] = useState(false);
 
   function levelForScore(points) {
     if (points >= 36500) return 9;
@@ -294,8 +304,13 @@ export default function FourDirectionTetris() {
     setPiece(null);
     setScore(0);
     setLevel(selectedLevel);
+    setScoreMultiplier(1);
+    setPowerUps([]);
     setLevelMessage("");
     setScoreFlash("");
+    setScoreMultiplier(1);
+    setPowerUps([]);
+    setDestroyedPiece(null);
     setGameOver(false);
     setFailReason("");
     setPaused(false);
@@ -303,6 +318,109 @@ export default function FourDirectionTetris() {
     setFlashKeys(new Set());
     setScreen("title");
     setCountdown(null);
+  }
+
+  function randomPowerUp(board) {
+    for (let attempt = 0; attempt < 80; attempt++) {
+      const x = SAFE_MIN + Math.floor(Math.random() * (SAFE_MAX - SAFE_MIN + 1));
+      const y = SAFE_MIN + Math.floor(Math.random() * (SAFE_MAX - SAFE_MIN + 1));
+      if (!board[y][x] && !isCoreCell(x, y)) {
+        if (!hasExtraLife && Math.random() < 0.03) {
+          return {
+            id: crypto.randomUUID(),
+            x,
+            y,
+            type:'life',
+            turnsLeft: POWERUP_TURNS,
+            collected:false
+          };
+        }
+
+        const multiplier = Math.random() < 0.15 ? 4 : 2;
+        return {
+          id: crypto.randomUUID(),
+          x,
+          y,
+          type:'multiplier',
+          multiplier,
+          turnsLeft: POWERUP_TURNS,
+          collected:false
+        };
+      }
+    }
+    return null;
+  }
+
+  function maybeSpawnPowerUp(board) {
+    if (gameMode !== "arcade") return;
+    setPowerUps(prev => {
+      const aged = prev
+        .map(p => ({ ...p, turnsLeft: p.turnsLeft - 1 }))
+        .filter(p => p.turnsLeft > 0);
+
+      if (aged.length >= 2) return aged;
+      if (Math.random() > 0.16) return aged;
+
+      const next = randomPowerUp(board);
+      return next ? [...aged, next] : aged;
+    });
+  }
+
+  function collectPowerUps(activePiece) {
+    if (gameMode !== "arcade" || !activePiece || !powerUps.length) return false;
+
+    const cells = pieceCells(activePiece);
+    const collected = powerUps.filter(power => {
+      if (power.collected) return false;
+      return cells.some(cell => cell.x === power.x && cell.y === power.y);
+    });
+
+    if (!collected.length) return false;
+
+    const lifeCollected = collected.some(p => p.type === 'life');
+    const multiplierPickups = collected.filter(p => p.type === 'multiplier');
+    const strongest = multiplierPickups.length
+      ? Math.max(...multiplierPickups.map(p => p.multiplier))
+      : 1;
+    const collectedIds = new Set(collected.map(p => p.id));
+
+    setPowerUps(prev => prev.map(power => (
+      collectedIds.has(power.id) ? { ...power, collected:true } : power
+    )));
+
+    if (multiplierPickups.length) {
+      setScoreMultiplier(prev => {
+        const next = Math.min(MAX_SCORE_MULTIPLIER, prev * strongest);
+        setMultiplierPopup(`x${next}`);
+        setTimeout(() => setMultiplierPopup(""), 900);
+        return next;
+      });
+    }
+
+    if (lifeCollected) {
+      setHasExtraLife(true);
+      setMultiplierPopup("EXTRA LIFE");
+      setTimeout(() => setMultiplierPopup(""), 1300);
+    }
+
+    setScoreFlash("");
+    setDestroyedPiece(activePiece);
+    setPiece(null);
+    setAnimating(true);
+
+    setTimeout(() => {
+      setPowerUps(prev => prev.filter(p => !collectedIds.has(p.id)));
+      setDestroyedPiece(null);
+      addScore(lifeCollected ? 100 : 25 * strongest, lifeCollected ? "life" : "orb");
+
+      setTimeout(() => {
+        setAnimating(false);
+        maybeSpawnPowerUp(board);
+        spawn(board);
+      }, 90);
+    }, 220);
+
+    return true;
   }
 
   function spawn(nextBoard) {
@@ -326,6 +444,9 @@ export default function FourDirectionTetris() {
     setLevel(selectedLevel);
     setLevelMessage("");
     setScoreFlash("");
+    setScoreMultiplier(1);
+    setPowerUps([]);
+    setDestroyedPiece(null);
     setGameOver(false);
     setFailReason("");
     setPaused(false);
@@ -344,7 +465,7 @@ export default function FourDirectionTetris() {
   }
 
   function addScore(amount, label = "") {
-    const gained = amount * level;
+    const gained = amount * level * scoreMultiplier;
     setScoreFlash(`+${Math.floor(gained)}${label ? ` ${label}` : ""}`);
     setTimeout(() => setScoreFlash(""), 700);
 
@@ -378,6 +499,7 @@ export default function FourDirectionTetris() {
       } else {
         if (totalBonus) addScore(totalBonus, "loose");
         setAnimating(false);
+        maybeSpawnPowerUp(current);
         spawn(current);
       }
     };
@@ -422,10 +544,34 @@ export default function FourDirectionTetris() {
       return;
     }
 
-    setPiece({ ...piece, x: nx, y: ny });
+    const movedPiece = { ...piece, x: nx, y: ny };
+    if (collectPowerUps(movedPiece)) return;
+    setPiece(movedPiece);
     if (breachesBarrier(piece, nx, ny)) {
-      setFailReason("Barrier breached");
-      setGameOver(true);
+      if (hasExtraLife) {
+        setHasExtraLife(false);
+        setScreenFlash(true);
+        setAnimating(true);
+
+        setTimeout(() => {
+          const freshBoard = emptyBoard();
+          setBoard(freshBoard);
+          setPiece(null);
+          setDestroyedPiece(null);
+          setPowerUps([]);
+          setScreenFlash(false);
+          setMultiplierPopup("EXTRA LIFE");
+
+          setTimeout(() => {
+            setMultiplierPopup("");
+            setAnimating(false);
+            spawn(freshBoard);
+          }, 900);
+        }, 180);
+      } else {
+        setFailReason("Barrier breached");
+        setGameOver(true);
+      }
     }
   }
 
@@ -453,13 +599,21 @@ export default function FourDirectionTetris() {
       if (direction === "forward") nx += 1;
     }
 
-    if (validSideMove(board, piece, nx, ny)) setPiece({ ...piece, x: nx, y: ny });
+    if (validSideMove(board, piece, nx, ny)) {
+      const movedPiece = { ...piece, x: nx, y: ny };
+      if (collectPowerUps(movedPiece)) return;
+      setPiece(movedPiece);
+    }
   }
 
   function rotatePiece() {
     if (screen !== "playing" || gameOver || paused || animating || !piece) return;
     const rotated = rotate(piece.shape);
-    if (validSideMove(board, piece, piece.x, piece.y, rotated)) setPiece({ ...piece, shape: rotated });
+    if (validSideMove(board, piece, piece.x, piece.y, rotated)) {
+      const rotatedPiece = { ...piece, shape: rotated };
+      if (collectPowerUps(rotatedPiece)) return;
+      setPiece(rotatedPiece);
+    }
   }
 
   function drop() {
@@ -472,8 +626,30 @@ export default function FourDirectionTetris() {
       p.y += dy;
       if (breachesBarrier(p)) {
         setPiece(p);
+        if (hasExtraLife) {
+        setHasExtraLife(false);
+        setScreenFlash(true);
+        setAnimating(true);
+
+        setTimeout(() => {
+          const freshBoard = emptyBoard();
+          setBoard(freshBoard);
+          setPiece(null);
+          setDestroyedPiece(null);
+          setPowerUps([]);
+          setScreenFlash(false);
+          setMultiplierPopup("EXTRA LIFE");
+
+          setTimeout(() => {
+            setMultiplierPopup("");
+            setAnimating(false);
+            spawn(freshBoard);
+          }, 900);
+        }, 180);
+      } else {
         setFailReason("Barrier breached");
         setGameOver(true);
+      }
         return;
       }
     }
@@ -517,7 +693,7 @@ export default function FourDirectionTetris() {
   });
 
   useEffect(() => {
-    const speed = Math.max(MIN_SPEED, Math.floor(START_SPEED * Math.pow(0.78, level - 1)));
+    const speed = Math.max(28, Math.floor(560 * Math.pow(0.68, level - 1)));
     const id = setInterval(step, speed);
     return () => clearInterval(id);
   });
@@ -563,7 +739,38 @@ export default function FourDirectionTetris() {
     };
 
     board.forEach((row, y) => row.forEach((color, x) => color && drawCell(x, y, color)));
-    if (!animating && piece) piece.shape.forEach((row, r) => row.forEach((cell, c) => cell && drawCell(piece.x + c, piece.y + r, piece.color)));
+
+    powerUps.forEach(power => {
+      const flashOn = Math.floor(Date.now() / 120) % 2 === 0;
+      const collectedFlash = power.collected;
+      let color;
+      if (collectedFlash) {
+        color = flashOn ? "#ffffff" : "#fde68a";
+      } else {
+        color = flashOn
+          ? "#ffffff"
+          : (power.multiplier === 4 ? "#ff00aa" : "#00e5ff");
+      }
+      const px = power.x * CELL + 3;
+      const py = power.y * CELL + 3;
+      const size = CELL - 6;
+
+      if (power.type === 'life') {
+        color = flashOn ? '#ffffff' : '#ff0033';
+      }
+
+      ctx.fillStyle = color;
+      ctx.fillRect(px, py, size, size);
+      ctx.lineWidth = 1;
+      ctx.textBaseline = "alphabetic";
+      ctx.lineWidth = 1;
+    });
+    if (destroyedPiece) {
+      const flashOn = Math.floor(Date.now() / 80) % 2 === 0;
+      destroyedPiece.shape.forEach((row, r) => row.forEach((cell, c) => cell && drawCell(destroyedPiece.x + c, destroyedPiece.y + r, flashOn ? "#ffffff" : destroyedPiece.color)));
+    } else if (!animating && piece) {
+      piece.shape.forEach((row, r) => row.forEach((cell, c) => cell && drawCell(piece.x + c, piece.y + r, piece.color)));
+    }
 
     if (screen === "countdown" && countdown) {
       ctx.fillStyle = "rgba(0,0,0,0.45)";
@@ -572,6 +779,19 @@ export default function FourDirectionTetris() {
       ctx.font = "bold 72px sans-serif";
       ctx.textAlign = "center";
       ctx.fillText(countdown, canvas.width / 2, canvas.height / 2 + 24);
+    }
+
+    if (screenFlash) {
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    if (multiplierPopup) {
+      ctx.fillStyle = "rgba(255,255,255,0.95)";
+      ctx.font = "bold 72px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(multiplierPopup, canvas.width / 2, canvas.height / 2 + 20);
+      ctx.textAlign = 'left';
     }
 
     if (gameOver) {
@@ -584,7 +804,7 @@ export default function FourDirectionTetris() {
       ctx.font = "16px sans-serif";
       ctx.fillText(failReason || "Game ended", canvas.width / 2, canvas.height / 2 + 34);
     }
-  }, [board, piece, gameOver, failReason, animating, flashKeys, screen, countdown]);
+  }, [board, piece, gameOver, failReason, animating, flashKeys, screen, countdown, powerUps, multiplierPopup, destroyedPiece]);
 
   return (
     <div style={{ minHeight:'100vh', color:'white', display:'flex', alignItems:'center', justifyContent:'center', padding:'28px', width:'100%', background:'radial-gradient(circle at top, #1e293b 0%, #0f172a 42%, #020617 100%)', fontFamily:'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif' }}>
@@ -599,6 +819,11 @@ export default function FourDirectionTetris() {
               <div style={{ height:'1px', background:'rgba(148,163,184,0.16)', margin:'8px 0' }} />
               <div style={{ fontSize:'10px', color:'#64748b' }}>4x4 clear = 100 × level</div>
               <div style={{ fontSize:'10px', color:'#64748b' }}>Loose block = 10 × level</div>
+              <div style={{ fontSize:'10px', color:'#94a3b8', marginTop:'6px' }}>Mode: {gameMode}</div>
+              <div style={{ fontSize:'10px', color: hasExtraLife ? '#ff6680' : '#475569' }}>
+                Life: {hasExtraLife ? '♥' : '-'}
+              </div>
+              <div style={{ fontSize:'10px', color:'#fbbf24' }}>Multiplier: x{scoreMultiplier}</div>
             </div>
 
             <div style={{ textAlign:'center', minHeight:'64px', paddingTop:'4px' }}>
@@ -622,6 +847,38 @@ export default function FourDirectionTetris() {
               </div>
               <div style={{ color:'#cbd5e1', fontSize:'14px', maxWidth:'390px', padding:'0 18px', lineHeight:1.55 }}>
                 Build from the centre. Clear 4×4 blocks. Survive the accelerating fall from four directions.
+              </div>
+
+              <div style={{ display:'flex', gap:'10px' }}>
+                <button
+                  onClick={() => setGameMode('classic')}
+                  style={{
+                    padding:'10px 18px',
+                    borderRadius:'12px',
+                    border: gameMode === 'classic' ? '2px solid #60a5fa' : '1px solid #475569',
+                    background: gameMode === 'classic' ? '#1e3a8a' : '#1e293b',
+                    color:'white',
+                    cursor:'pointer',
+                    fontWeight:700
+                  }}
+                >
+                  Classic
+                </button>
+
+                <button
+                  onClick={() => setGameMode('arcade')}
+                  style={{
+                    padding:'10px 18px',
+                    borderRadius:'12px',
+                    border: gameMode === 'arcade' ? '2px solid #f472b6' : '1px solid #475569',
+                    background: gameMode === 'arcade' ? '#831843' : '#1e293b',
+                    color:'white',
+                    cursor:'pointer',
+                    fontWeight:700
+                  }}
+                >
+                  Arcade
+                </button>
               </div>
               <div style={{ display:'flex', alignItems:'center', gap:'12px', background:'rgba(30,41,59,0.65)', border:'1px solid rgba(148,163,184,0.18)', borderRadius:'14px', padding:'10px 14px' }}>
                 <span style={{ fontSize:'13px', color:'#94a3b8' }}>Start level</span>
@@ -651,6 +908,7 @@ export default function FourDirectionTetris() {
             <div>No line clears</div>
             <div>Loose blocks fall inward</div>
             <div>Lost loose blocks give points</div>
+            <div>Arcade: collect multiplier orbs</div>
           </div>
 
           <div style={{ display:'flex', gap:'10px', justifyContent:'center' }}>
