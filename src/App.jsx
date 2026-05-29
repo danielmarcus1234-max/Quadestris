@@ -286,6 +286,8 @@ export default function FourDirectionTetris() {
   const [hasExtraLife, setHasExtraLife] = useState(false);
   const [screenFlash, setScreenFlash] = useState(false);
   const [missileEffect, setMissileEffect] = useState(null);
+  const holdDelayRef = useRef(null);
+  const holdIntervalRef = useRef(null);
 
   function levelForScore(points) {
     if (points >= 36500) return 9;
@@ -811,6 +813,82 @@ export default function FourDirectionTetris() {
     lockPiece(p);
   }
 
+  function getPadLabels() {
+    if (!piece) {
+      return {
+        top: "ROTATE",
+        left: "LEFT",
+        center: "DROP",
+        right: "RIGHT",
+        bottom: "FORWARD",
+      };
+    }
+
+    if (piece.side === "top") {
+      return { top: "ROTATE", left: "LEFT", center: "DROP", right: "RIGHT", bottom: "FORWARD" };
+    }
+    if (piece.side === "bottom") {
+      return { top: "FORWARD", left: "RIGHT", center: "DROP", right: "LEFT", bottom: "ROTATE" };
+    }
+    if (piece.side === "right") {
+      return { top: "RIGHT", left: "FORWARD", center: "DROP", right: "ROTATE", bottom: "LEFT" };
+    }
+    return { top: "LEFT", left: "ROTATE", center: "DROP", right: "FORWARD", bottom: "RIGHT" };
+  }
+
+  function triggerPad(position) {
+    if (!piece) return;
+
+    if (position === "center") {
+      drop();
+      return;
+    }
+
+    if (piece.side === "top") {
+      if (position === "left") moveRelative("left");
+      if (position === "right") moveRelative("right");
+      if (position === "top") rotatePiece();
+      if (position === "bottom") moveRelative("forward");
+    } else if (piece.side === "bottom") {
+      if (position === "left") moveRelative("right");
+      if (position === "right") moveRelative("left");
+      if (position === "bottom") rotatePiece();
+      if (position === "top") moveRelative("forward");
+    } else if (piece.side === "right") {
+      if (position === "top") moveRelative("right");
+      if (position === "bottom") moveRelative("left");
+      if (position === "left") moveRelative("forward");
+      if (position === "right") rotatePiece();
+    } else if (piece.side === "left") {
+      if (position === "top") moveRelative("left");
+      if (position === "bottom") moveRelative("right");
+      if (position === "right") moveRelative("forward");
+      if (position === "left") rotatePiece();
+    }
+  }
+
+  function stopHold() {
+    if (holdDelayRef.current) clearTimeout(holdDelayRef.current);
+    if (holdIntervalRef.current) clearInterval(holdIntervalRef.current);
+    holdDelayRef.current = null;
+    holdIntervalRef.current = null;
+  }
+
+  function startHold(position) {
+    stopHold();
+    triggerPad(position);
+
+    if (position === "center") return;
+
+    holdDelayRef.current = setTimeout(() => {
+      holdIntervalRef.current = setInterval(() => triggerPad(position), 70);
+    }, 160);
+  }
+
+  useEffect(() => {
+    return () => stopHold();
+  }, []);
+
   useEffect(() => {
     const onKey = e => {
       if (!piece) return;
@@ -996,6 +1074,8 @@ export default function FourDirectionTetris() {
     }
   }, [board, piece, gameOver, failReason, animating, flashKeys, screen, countdown, powerUps, multiplierPopup, destroyedPiece, missileEffect]);
 
+  const padLabels = getPadLabels();
+
   return (
     <div style={{ minHeight:'100vh', color:'white', display:'flex', alignItems:'center', justifyContent:'center', padding:'28px', width:'100%', background:'radial-gradient(circle at top, #1e293b 0%, #0f172a 42%, #020617 100%)', fontFamily:'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif' }}>
       <div style={{ margin:'0 auto', width:'min-content', background:'linear-gradient(180deg, rgba(15,23,42,0.96), rgba(2,6,23,0.98))', border:'1px solid rgba(148,163,184,0.25)', borderRadius:'24px', padding:'24px', boxShadow:'0 30px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06)' }}>
@@ -1091,8 +1171,78 @@ export default function FourDirectionTetris() {
             style={{ borderRadius:'18px', border:'1px solid rgba(148,163,184,0.32)', background:'#020617', boxShadow:'0 18px 50px rgba(0,0,0,0.45)' }}
           />
 
+          <div
+            style={{
+              display:'grid',
+              gridTemplateColumns:'86px 86px 86px',
+              gridTemplateRows:'58px 58px 58px',
+              gap:'8px',
+              justifyContent:'center',
+              alignItems:'center',
+              touchAction:'none',
+              userSelect:'none'
+            }}
+          >
+            <div />
+            <button
+              onPointerDown={e => { e.preventDefault(); startHold('top'); }}
+              onPointerUp={stopHold}
+              onPointerLeave={stopHold}
+              onPointerCancel={stopHold}
+              onContextMenu={e => e.preventDefault()}
+              style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(148,163,184,0.28)', background:'#1e293b', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer' }}
+            >
+              {padLabels.top}
+            </button>
+            <div />
+
+            <button
+              onPointerDown={e => { e.preventDefault(); startHold('left'); }}
+              onPointerUp={stopHold}
+              onPointerLeave={stopHold}
+              onPointerCancel={stopHold}
+              onContextMenu={e => e.preventDefault()}
+              style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(148,163,184,0.28)', background:'#1e293b', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer' }}
+            >
+              {padLabels.left}
+            </button>
+            <button
+              onPointerDown={e => { e.preventDefault(); startHold('center'); }}
+              onPointerUp={stopHold}
+              onPointerLeave={stopHold}
+              onPointerCancel={stopHold}
+              onContextMenu={e => e.preventDefault()}
+              style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(250,204,21,0.45)', background:'#854d0e', color:'white', fontWeight:900, fontSize:'12px', cursor:'pointer', boxShadow:'0 0 18px rgba(250,204,21,0.16)' }}
+            >
+              {padLabels.center}
+            </button>
+            <button
+              onPointerDown={e => { e.preventDefault(); startHold('right'); }}
+              onPointerUp={stopHold}
+              onPointerLeave={stopHold}
+              onPointerCancel={stopHold}
+              onContextMenu={e => e.preventDefault()}
+              style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(148,163,184,0.28)', background:'#1e293b', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer' }}
+            >
+              {padLabels.right}
+            </button>
+
+            <div />
+            <button
+              onPointerDown={e => { e.preventDefault(); startHold('bottom'); }}
+              onPointerUp={stopHold}
+              onPointerLeave={stopHold}
+              onPointerCancel={stopHold}
+              onContextMenu={e => e.preventDefault()}
+              style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(148,163,184,0.28)', background:'#1e293b', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer' }}
+            >
+              {padLabels.bottom}
+            </button>
+            <div />
+          </div>
+
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', fontSize:'13px', color:'#cbd5e1', background:'rgba(15,23,42,0.55)', border:'1px solid rgba(148,163,184,0.16)', borderRadius:'16px', padding:'12px' }}>
-            <div>← / → / WASD: relative movement</div>
+            <div>← / → / WASD or pad: relative movement</div>
             <div>Space: hard drop</div>
             <div>4×4 squares clear</div>
             <div>No line clears</div>
