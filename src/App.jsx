@@ -350,7 +350,7 @@ export default function FourDirectionTetris() {
       if (clearArea) {
         const roll = Math.random();
 
-        if (roll < 0.58) {
+        if (roll < 0.52) {
           return {
             id: crypto.randomUUID(),
             x,
@@ -363,7 +363,7 @@ export default function FourDirectionTetris() {
           };
         }
 
-        if (roll < 0.82) {
+        if (roll < 0.76) {
           return {
             id: crypto.randomUUID(),
             x,
@@ -376,7 +376,7 @@ export default function FourDirectionTetris() {
           };
         }
 
-        if (roll < 0.95) {
+        if (roll < 0.88) {
           return {
             id: crypto.randomUUID(),
             x,
@@ -388,7 +388,7 @@ export default function FourDirectionTetris() {
           };
         }
 
-        if (roll < 0.985) {
+        if (roll < 0.96) {
           return {
             id: crypto.randomUUID(),
             x,
