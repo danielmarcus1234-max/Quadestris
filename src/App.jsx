@@ -442,18 +442,6 @@ export default function FourDirectionTetris() {
           };
         }
 
-        if (roll < 0.985) {
-          return {
-            id: crypto.randomUUID(),
-            x,
-            y,
-            size:3,
-            type:'cursed',
-            turnsLeft: POWERUP_TURNS,
-            collected:false
-          };
-        }
-
         if (!hasExtraLife) {
           return {
             id: crypto.randomUUID(),
@@ -525,7 +513,7 @@ export default function FourDirectionTetris() {
   }
 
   function maybeSpawnPowerUp(board) {
-    if (gameMode !== "arcade") return;
+    if (gameMode !== "arcade" && gameMode !== "cursed") return;
     setPowerUps(prev => {
       const aged = prev
         .map(p => ({ ...p, turnsLeft: p.turnsLeft - 1 }))
@@ -540,7 +528,7 @@ export default function FourDirectionTetris() {
   }
 
   function collectPowerUps(activePiece, sourceBoard = board, hasOtherActivePiece = false) {
-    if (gameMode !== "arcade" || !activePiece || !powerUps.length) {
+    if ((gameMode !== "arcade" && gameMode !== "cursed") || !activePiece || !powerUps.length) {
       return { collected: false, removePiece: false };
     }
 
@@ -562,7 +550,6 @@ export default function FourDirectionTetris() {
     const dualCollected = collected.some(p => p.type === 'dual');
     const slowMoCollected = collected.some(p => p.type === 'slowmo');
     const reverseCollected = collected.some(p => p.type === 'reverse');
-    const cursedCollected = collected.some(p => p.type === 'cursed');
     const multiplierPickups = collected.filter(p => p.type === 'multiplier');
     const strongest = multiplierPickups.length
       ? Math.max(...multiplierPickups.map(p => p.multiplier))
@@ -612,12 +599,6 @@ export default function FourDirectionTetris() {
       setTimeout(() => setMultiplierPopup(""), 900);
     }
 
-    if (cursedCollected) {
-      setPendingCursedPiece(true);
-      setMultiplierPopup("CURSED NEXT");
-      setTimeout(() => setMultiplierPopup(""), 1000);
-    }
-
     setScoreFlash("");
     setDestroyedPiece(activePiece);
 
@@ -629,8 +610,8 @@ export default function FourDirectionTetris() {
       }
 
       addScore(
-        lifeCollected ? 100 : missileCollected ? 150 : dualCollected ? 180 : slowMoCollected ? 120 : reverseCollected ? 120 : cursedCollected ? 140 : 25 * strongest,
-        lifeCollected ? "life" : missileCollected ? "missile" : dualCollected ? "dual" : slowMoCollected ? "slow" : reverseCollected ? "reverse" : cursedCollected ? "cursed" : "orb"
+        lifeCollected ? 100 : missileCollected ? 150 : dualCollected ? 180 : slowMoCollected ? 120 : reverseCollected ? 120 : 25 * strongest,
+        lifeCollected ? "life" : missileCollected ? "missile" : dualCollected ? "dual" : slowMoCollected ? "slow" : reverseCollected ? "reverse" : "orb"
       );
 
     }, 220);
@@ -758,9 +739,16 @@ export default function FourDirectionTetris() {
     return false;
   }
 
+  function shouldUseCursedPool() {
+    return gameMode === "cursed" && Math.random() < 0.5;
+  }
+
   function nextSpawnPiece(forcedSide = null) {
     if (pendingCursedPiece) {
       setPendingCursedPiece(false);
+      return randomPiece(forcedSide, CURSED_SHAPES);
+    }
+    if (shouldUseCursedPool()) {
       return randomPiece(forcedSide, CURSED_SHAPES);
     }
     return randomPiece(forcedSide);
@@ -780,10 +768,12 @@ export default function FourDirectionTetris() {
   }
 
   function spawnDual(nextBoard) {
-    const useCursed = pendingCursedPiece;
+    const useCursed = pendingCursedPiece || shouldUseCursedPool();
     for (let attempt = 0; attempt < 80; attempt++) {
       const first = useCursed ? randomPiece(null, CURSED_SHAPES) : randomPiece();
-      const second = randomPiece(oppositeSide(first.side));
+      const second = shouldUseCursedPool()
+        ? randomPiece(oppositeSide(first.side), CURSED_SHAPES)
+        : randomPiece(oppositeSide(first.side));
       const overlapEachOther = pieceCells(first).some(a =>
         pieceCells(second).some(b => a.x === b.x && a.y === b.y)
       );
@@ -1142,14 +1132,13 @@ export default function FourDirectionTetris() {
     const onKey = e => {
       const key = e.key.toLowerCase();
 
-      if (devMode && screen === "playing" && gameMode === "arcade") {
+      if (devMode && screen === "playing" && (gameMode === "arcade" || gameMode === "cursed")) {
         if (key === "2") spawnDebugPowerUp("multiplier2");
         if (key === "3") spawnDebugPowerUp("multiplier3");
         if (key === "4") spawnDebugPowerUp("missile");
         if (key === "5") spawnDebugPowerUp("dual");
         if (key === "6") spawnDebugPowerUp("life");
         if (key === "7") spawnDebugPowerUp("slowmo");
-        if (key === "8") spawnDebugPowerUp("cursed");
       }
 
       const piece = pieces[0];
@@ -1294,9 +1283,6 @@ export default function FourDirectionTetris() {
         color = flashOn ? '#ffffff' : '#a855f7';
       }
       if (power.type === 'reverse') {
-        color = flashOn ? '#ffffff' : '#a855f7';
-      }
-      if (power.type === 'cursed') {
         color = flashOn ? '#ffffff' : '#a855f7';
       }
       if (power.type === 'slowmo') {
@@ -1465,6 +1451,20 @@ export default function FourDirectionTetris() {
                 >
                   Arcade
                 </button>
+                <button
+                  onClick={() => setGameMode('cursed')}
+                  style={{
+                    padding:'10px 18px',
+                    borderRadius:'12px',
+                    border: gameMode === 'cursed' ? '2px solid #a855f7' : '1px solid #475569',
+                    background: gameMode === 'cursed' ? '#4c1d95' : '#1e293b',
+                    color:'white',
+                    cursor:'pointer',
+                    fontWeight:700
+                  }}
+                >
+                  Cursed
+                </button>
               </div>
               <div style={{ display:'flex', alignItems:'center', gap:'12px', background:'rgba(30,41,59,0.65)', border:'1px solid rgba(148,163,184,0.18)', borderRadius:'14px', padding:'10px 14px' }}>
                 <span style={{ fontSize:'13px', color:'#94a3b8' }}>Start level</span>
@@ -1482,7 +1482,7 @@ export default function FourDirectionTetris() {
                   checked={devMode}
                   onChange={e => setDevMode(e.target.checked)}
                 />
-                Dev mode (2=x2, 3=x3, 4=missile, 5=dual, 6=life, 7=slow-mo, 8=cursed)
+                Dev mode (2=x2, 3=x3, 4=missile, 5=dual, 6=life, 7=slow-mo)
               </label>
               <button onClick={startGame} style={{ padding:'12px 32px', borderRadius:'12px', background:'#2563eb', color:'white', border:'none', cursor:'pointer', fontWeight:'bold' }}>Play</button>
             </div>
