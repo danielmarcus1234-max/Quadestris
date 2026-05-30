@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 const GRID = 35;
 const CELL = 16;
 const START_SPEED = 720;
-const MIN_SPEED = 38;
+const MIN_SPEED = 82;
 const CENTRE = Math.floor(GRID / 2);
 const SAFE_MIN = 2;
 const SAFE_MAX = GRID - 3;
@@ -13,6 +13,7 @@ const FLASH_MS = 160;
 const SETTLE_TICK_MS = 45;
 const MULTIPLIER_DURATION_MS = 20000;
 const SLOWMO_DURATION_MS = 10000;
+const REVERSE_DURATION_MS = 10000;
 const POWERUP_TURNS = 6;
 const MAX_SCORE_MULTIPLIER = 6;
 
@@ -24,6 +25,13 @@ const SHAPES = [
   [[0, 0, 1], [1, 1, 1]],
   [[1, 1, 0], [0, 1, 1]],
   [[0, 1, 1], [1, 1, 0]],
+];
+const CURSED_SHAPES = [
+  [[1, 1, 1, 1, 1, 1, 1, 1]],
+  [[1, 1], [1, 1], [1, 1], [1, 1]],
+  [[0, 1, 0], [1, 1, 1], [0, 1, 0], [1, 1, 1]],
+  [[1, 0, 1], [1, 1, 1], [0, 1, 0], [1, 1, 1]],
+  [[1, 1, 1], [1, 0, 1], [1, 1, 1], [0, 1, 0]],
 ];
 
 const COLORS = ["#e11d48", "#2563eb", "#16a34a", "#ca8a04", "#7c3aed", "#ea580c", "#0891b2"];
@@ -50,10 +58,10 @@ function rotate(shape) {
   return shape[0].map((_, i) => shape.map(row => row[i]).reverse());
 }
 
-function randomPiece(forcedSide = null) {
-  const index = Math.floor(Math.random() * SHAPES.length);
+function randomPiece(forcedSide = null, shapePool = SHAPES) {
+  const index = Math.floor(Math.random() * shapePool.length);
   const side = forcedSide || ["top", "right", "bottom", "left"][Math.floor(Math.random() * 4)];
-  const shape = SHAPES[index];
+  const shape = shapePool[index];
   let x = CENTRE - Math.floor(shape[0].length / 2);
   let y = CENTRE - Math.floor(shape.length / 2);
 
@@ -62,7 +70,7 @@ function randomPiece(forcedSide = null) {
   if (side === "left") x = SAFE_MIN;
   if (side === "right") x = SAFE_MAX - shape[0].length + 1;
 
-  return { id: crypto.randomUUID(), shape, color: COLORS[index], x, y, side };
+  return { id: crypto.randomUUID(), shape, color: COLORS[index % COLORS.length], x, y, side };
 }
 
 function oppositeSide(side) {
@@ -297,6 +305,8 @@ export default function FourDirectionTetris() {
   const [missileEffect, setMissileEffect] = useState(null);
   const [pendingDualSpawn, setPendingDualSpawn] = useState(false);
   const [slowMoUntil, setSlowMoUntil] = useState(0);
+  const [reverseUntil, setReverseUntil] = useState(0);
+  const [pendingCursedPiece, setPendingCursedPiece] = useState(false);
   const holdDelayRef = useRef(null);
   const holdIntervalRef = useRef(null);
 
@@ -328,6 +338,8 @@ export default function FourDirectionTetris() {
     setMissileEffect(null);
     setPendingDualSpawn(false);
     setSlowMoUntil(0);
+    setReverseUntil(0);
+    setPendingCursedPiece(false);
     setHasExtraLife(false);
     setScreenFlash(false);
     setGameOver(false);
@@ -353,6 +365,8 @@ export default function FourDirectionTetris() {
 
       if (clearArea) {
         const roll = Math.random();
+        const slowMoChance = Math.min(0.06, 0.05 + Math.max(0, level - 3) * 0.01);
+        const slowMoThreshold = Math.min(0.94, 0.88 + slowMoChance);
 
         if (roll < 0.52) {
           return {
@@ -392,7 +406,7 @@ export default function FourDirectionTetris() {
           };
         }
 
-        if (roll < 0.93) {
+        if (roll < slowMoThreshold) {
           return {
             id: crypto.randomUUID(),
             x,
@@ -404,13 +418,37 @@ export default function FourDirectionTetris() {
           };
         }
 
-        if (roll < 0.96) {
+        if (roll < 0.95) {
           return {
             id: crypto.randomUUID(),
             x,
             y,
             size:3,
             type:'dual',
+            turnsLeft: POWERUP_TURNS,
+            collected:false
+          };
+        }
+
+        if (roll < 0.97) {
+          return {
+            id: crypto.randomUUID(),
+            x,
+            y,
+            size:3,
+            type:'reverse',
+            turnsLeft: POWERUP_TURNS,
+            collected:false
+          };
+        }
+
+        if (roll < 0.985) {
+          return {
+            id: crypto.randomUUID(),
+            x,
+            y,
+            size:3,
+            type:'cursed',
             turnsLeft: POWERUP_TURNS,
             collected:false
           };
@@ -523,6 +561,8 @@ export default function FourDirectionTetris() {
     const missileCollected = collected.some(p => p.type === 'missile');
     const dualCollected = collected.some(p => p.type === 'dual');
     const slowMoCollected = collected.some(p => p.type === 'slowmo');
+    const reverseCollected = collected.some(p => p.type === 'reverse');
+    const cursedCollected = collected.some(p => p.type === 'cursed');
     const multiplierPickups = collected.filter(p => p.type === 'multiplier');
     const strongest = multiplierPickups.length
       ? Math.max(...multiplierPickups.map(p => p.multiplier))
@@ -566,6 +606,18 @@ export default function FourDirectionTetris() {
       setTimeout(() => setMultiplierPopup(""), 900);
     }
 
+    if (reverseCollected) {
+      setReverseUntil(prev => Math.max(prev, Date.now()) + REVERSE_DURATION_MS);
+      setMultiplierPopup("REVERSE");
+      setTimeout(() => setMultiplierPopup(""), 900);
+    }
+
+    if (cursedCollected) {
+      setPendingCursedPiece(true);
+      setMultiplierPopup("CURSED NEXT");
+      setTimeout(() => setMultiplierPopup(""), 1000);
+    }
+
     setScoreFlash("");
     setDestroyedPiece(activePiece);
 
@@ -577,8 +629,8 @@ export default function FourDirectionTetris() {
       }
 
       addScore(
-        lifeCollected ? 100 : missileCollected ? 150 : dualCollected ? 180 : slowMoCollected ? 120 : 25 * strongest,
-        lifeCollected ? "life" : missileCollected ? "missile" : dualCollected ? "dual" : slowMoCollected ? "slow" : "orb"
+        lifeCollected ? 100 : missileCollected ? 150 : dualCollected ? 180 : slowMoCollected ? 120 : reverseCollected ? 120 : cursedCollected ? 140 : 25 * strongest,
+        lifeCollected ? "life" : missileCollected ? "missile" : dualCollected ? "dual" : slowMoCollected ? "slow" : reverseCollected ? "reverse" : cursedCollected ? "cursed" : "orb"
       );
 
     }, 220);
@@ -689,6 +741,8 @@ export default function FourDirectionTetris() {
         setScreenFlash(false);
         setMultiplierPopup("EXTRA LIFE");
         setSlowMoUntil(0);
+        setReverseUntil(0);
+        setPendingCursedPiece(false);
 
         setTimeout(() => {
           setMultiplierPopup("");
@@ -704,8 +758,16 @@ export default function FourDirectionTetris() {
     return false;
   }
 
+  function nextSpawnPiece(forcedSide = null) {
+    if (pendingCursedPiece) {
+      setPendingCursedPiece(false);
+      return randomPiece(forcedSide, CURSED_SHAPES);
+    }
+    return randomPiece(forcedSide);
+  }
+
   function spawn(nextBoard) {
-    const p = randomPiece();
+    const p = nextSpawnPiece();
     if (overlapsBoard(nextBoard, p)) {
       setFailReason("Spawn blocked");
       setGameOver(true);
@@ -718,8 +780,9 @@ export default function FourDirectionTetris() {
   }
 
   function spawnDual(nextBoard) {
+    const useCursed = pendingCursedPiece;
     for (let attempt = 0; attempt < 80; attempt++) {
-      const first = randomPiece();
+      const first = useCursed ? randomPiece(null, CURSED_SHAPES) : randomPiece();
       const second = randomPiece(oppositeSide(first.side));
       const overlapEachOther = pieceCells(first).some(a =>
         pieceCells(second).some(b => a.x === b.x && a.y === b.y)
@@ -733,6 +796,7 @@ export default function FourDirectionTetris() {
         continue;
       }
 
+      if (useCursed) setPendingCursedPiece(false);
       setPieces([first, second]);
       return true;
     }
@@ -753,6 +817,8 @@ export default function FourDirectionTetris() {
     setMissileEffect(null);
     setPendingDualSpawn(false);
     setSlowMoUntil(0);
+    setReverseUntil(0);
+    setPendingCursedPiece(false);
     setHasExtraLife(false);
     setScreenFlash(false);
     setGameOver(false);
@@ -978,6 +1044,22 @@ export default function FourDirectionTetris() {
     finalizeLockedBoard(currentBoard);
   }
 
+  function runControlAction(action) {
+    const reverseActive = reverseUntil > Date.now();
+    let mapped = action;
+
+    if (reverseActive) {
+      if (action === "left") mapped = "right";
+      else if (action === "right") mapped = "left";
+      else if (action === "forward") mapped = "rotate";
+      else if (action === "rotate") mapped = "forward";
+    }
+
+    if (mapped === "left" || mapped === "right" || mapped === "forward") moveRelative(mapped);
+    if (mapped === "rotate") rotatePiece();
+    if (mapped === "drop") drop();
+  }
+
   function getPadLabels() {
     const piece = pieces[0];
     if (!piece) {
@@ -1007,30 +1089,30 @@ export default function FourDirectionTetris() {
     const piece = pieces[0];
 
     if (position === "center") {
-      drop();
+      runControlAction("drop");
       return;
     }
 
     if (piece.side === "top") {
-      if (position === "left") moveRelative("left");
-      if (position === "right") moveRelative("right");
-      if (position === "top") rotatePiece();
-      if (position === "bottom") moveRelative("forward");
+      if (position === "left") runControlAction("left");
+      if (position === "right") runControlAction("right");
+      if (position === "top") runControlAction("rotate");
+      if (position === "bottom") runControlAction("forward");
     } else if (piece.side === "bottom") {
-      if (position === "left") moveRelative("right");
-      if (position === "right") moveRelative("left");
-      if (position === "bottom") rotatePiece();
-      if (position === "top") moveRelative("forward");
+      if (position === "left") runControlAction("right");
+      if (position === "right") runControlAction("left");
+      if (position === "bottom") runControlAction("rotate");
+      if (position === "top") runControlAction("forward");
     } else if (piece.side === "right") {
-      if (position === "top") moveRelative("right");
-      if (position === "bottom") moveRelative("left");
-      if (position === "left") moveRelative("forward");
-      if (position === "right") rotatePiece();
+      if (position === "top") runControlAction("right");
+      if (position === "bottom") runControlAction("left");
+      if (position === "left") runControlAction("forward");
+      if (position === "right") runControlAction("rotate");
     } else if (piece.side === "left") {
-      if (position === "top") moveRelative("left");
-      if (position === "bottom") moveRelative("right");
-      if (position === "right") moveRelative("forward");
-      if (position === "left") rotatePiece();
+      if (position === "top") runControlAction("left");
+      if (position === "bottom") runControlAction("right");
+      if (position === "right") runControlAction("forward");
+      if (position === "left") runControlAction("rotate");
     }
   }
 
@@ -1067,43 +1149,44 @@ export default function FourDirectionTetris() {
         if (key === "5") spawnDebugPowerUp("dual");
         if (key === "6") spawnDebugPowerUp("life");
         if (key === "7") spawnDebugPowerUp("slowmo");
+        if (key === "8") spawnDebugPowerUp("cursed");
       }
 
       const piece = pieces[0];
       if (!piece) return;
 
       if (piece.side === "top") {
-        if (e.key === "ArrowLeft" || e.key.toLowerCase() === "a") moveRelative("left");
-        if (e.key === "ArrowRight" || e.key.toLowerCase() === "d") moveRelative("right");
-        if (e.key === "ArrowUp" || e.key.toLowerCase() === "w") rotatePiece();
-        if (e.key === "ArrowDown" || e.key.toLowerCase() === "s") moveRelative("forward");
+        if (e.key === "ArrowLeft" || e.key.toLowerCase() === "a") runControlAction("left");
+        if (e.key === "ArrowRight" || e.key.toLowerCase() === "d") runControlAction("right");
+        if (e.key === "ArrowUp" || e.key.toLowerCase() === "w") runControlAction("rotate");
+        if (e.key === "ArrowDown" || e.key.toLowerCase() === "s") runControlAction("forward");
       } else if (piece.side === "bottom") {
-        if (e.key === "ArrowLeft" || e.key.toLowerCase() === "a") moveRelative("right");
-        if (e.key === "ArrowRight" || e.key.toLowerCase() === "d") moveRelative("left");
-        if (e.key === "ArrowDown" || e.key.toLowerCase() === "s") rotatePiece();
-        if (e.key === "ArrowUp" || e.key.toLowerCase() === "w") moveRelative("forward");
+        if (e.key === "ArrowLeft" || e.key.toLowerCase() === "a") runControlAction("right");
+        if (e.key === "ArrowRight" || e.key.toLowerCase() === "d") runControlAction("left");
+        if (e.key === "ArrowDown" || e.key.toLowerCase() === "s") runControlAction("rotate");
+        if (e.key === "ArrowUp" || e.key.toLowerCase() === "w") runControlAction("forward");
       } else if (piece.side === "right") {
-        if (e.key === "ArrowUp" || e.key.toLowerCase() === "w") moveRelative("right");
-        if (e.key === "ArrowDown" || e.key.toLowerCase() === "s") moveRelative("left");
-        if (e.key === "ArrowLeft" || e.key.toLowerCase() === "a") moveRelative("forward");
-        if (e.key === "ArrowRight" || e.key.toLowerCase() === "d") rotatePiece();
+        if (e.key === "ArrowUp" || e.key.toLowerCase() === "w") runControlAction("right");
+        if (e.key === "ArrowDown" || e.key.toLowerCase() === "s") runControlAction("left");
+        if (e.key === "ArrowLeft" || e.key.toLowerCase() === "a") runControlAction("forward");
+        if (e.key === "ArrowRight" || e.key.toLowerCase() === "d") runControlAction("rotate");
       } else if (piece.side === "left") {
-        if (e.key === "ArrowUp" || e.key.toLowerCase() === "w") moveRelative("left");
-        if (e.key === "ArrowDown" || e.key.toLowerCase() === "s") moveRelative("right");
-        if (e.key === "ArrowRight" || e.key.toLowerCase() === "d") moveRelative("forward");
-        if (e.key === "ArrowLeft" || e.key.toLowerCase() === "a") rotatePiece();
+        if (e.key === "ArrowUp" || e.key.toLowerCase() === "w") runControlAction("left");
+        if (e.key === "ArrowDown" || e.key.toLowerCase() === "s") runControlAction("right");
+        if (e.key === "ArrowRight" || e.key.toLowerCase() === "d") runControlAction("forward");
+        if (e.key === "ArrowLeft" || e.key.toLowerCase() === "a") runControlAction("rotate");
       }
 
-      if (e.key === " ") drop();
+      if (e.key === " ") runControlAction("drop");
       if (key === "p") setPaused(p => !p);
     };
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [pieces, screen, gameOver, paused, animating, board, powerUps, hasExtraLife, scoreMultiplier, gameMode, devMode]);
+  }, [pieces, screen, gameOver, paused, animating, board, powerUps, hasExtraLife, scoreMultiplier, gameMode, devMode, reverseUntil]);
 
   useEffect(() => {
-    const baseSpeed = Math.max(28, Math.floor(560 * Math.pow(0.68, level - 1)));
+    const baseSpeed = Math.max(MIN_SPEED, Math.floor(START_SPEED * Math.pow(0.84, level - 1)));
     const speed = slowMoUntil > Date.now() ? Math.round(baseSpeed * 1.85) : baseSpeed;
     const id = setInterval(step, speed);
     return () => clearInterval(id);
@@ -1121,6 +1204,17 @@ export default function FourDirectionTetris() {
   }, [slowMoUntil]);
 
   useEffect(() => {
+    if (!reverseUntil) return;
+    const remaining = reverseUntil - Date.now();
+    if (remaining <= 0) {
+      setReverseUntil(0);
+      return;
+    }
+    const id = setTimeout(() => setReverseUntil(0), remaining);
+    return () => clearTimeout(id);
+  }, [reverseUntil]);
+
+  useEffect(() => {
     if (screen !== "playing" || gameOver || paused || animating || pieces.length) return;
     const id = setTimeout(() => {
       if (pendingDualSpawn && gameMode === "arcade") {
@@ -1131,7 +1225,7 @@ export default function FourDirectionTetris() {
       setPendingDualSpawn(false);
     }, 120);
     return () => clearTimeout(id);
-  }, [screen, gameOver, paused, animating, pieces.length, pendingDualSpawn, gameMode, board]);
+  }, [screen, gameOver, paused, animating, pieces.length, pendingDualSpawn, pendingCursedPiece, gameMode, board]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1197,6 +1291,12 @@ export default function FourDirectionTetris() {
         color = flashOn ? '#ffffff' : '#ffb000';
       }
       if (power.type === 'dual') {
+        color = flashOn ? '#ffffff' : '#a855f7';
+      }
+      if (power.type === 'reverse') {
+        color = flashOn ? '#ffffff' : '#a855f7';
+      }
+      if (power.type === 'cursed') {
         color = flashOn ? '#ffffff' : '#a855f7';
       }
       if (power.type === 'slowmo') {
@@ -1329,6 +1429,7 @@ export default function FourDirectionTetris() {
             <div style={{ position:'absolute', inset:'24px', top:'96px', zIndex:30, background:'linear-gradient(180deg, rgba(15,23,42,0.98), rgba(2,6,23,0.98))', border:'1px solid rgba(148,163,184,0.24)', borderRadius:'22px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'20px', textAlign:'center', boxShadow:'0 24px 70px rgba(0,0,0,0.62)' }}>
               <div style={{ marginBottom:'20px' }}>
                 <BlockTitle />
+                <div style={{ color:'#94a3b8', fontSize:'12px', marginTop:'6px' }}>by Daniel Marcus</div>
               </div>
               <div style={{ color:'#cbd5e1', fontSize:'14px', maxWidth:'390px', padding:'0 18px', lineHeight:1.55 }}>
                 Build from the centre. Clear 4×4 blocks. Survive the accelerating fall from four directions.
@@ -1381,7 +1482,7 @@ export default function FourDirectionTetris() {
                   checked={devMode}
                   onChange={e => setDevMode(e.target.checked)}
                 />
-                Dev mode (2=x2, 3=x3, 4=missile, 5=dual, 6=life, 7=slow-mo)
+                Dev mode (2=x2, 3=x3, 4=missile, 5=dual, 6=life, 7=slow-mo, 8=cursed)
               </label>
               <button onClick={startGame} style={{ padding:'12px 32px', borderRadius:'12px', background:'#2563eb', color:'white', border:'none', cursor:'pointer', fontWeight:'bold' }}>Play</button>
             </div>
