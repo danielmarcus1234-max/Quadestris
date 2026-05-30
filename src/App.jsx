@@ -1012,6 +1012,19 @@ export default function FourDirectionTetris() {
   }, [level, step]);
 
   useEffect(() => {
+    if (screen !== "playing" || gameOver || paused || animating || pieces.length) return;
+    const id = setTimeout(() => {
+      if (pendingDualSpawn && gameMode === "arcade") {
+        if (!spawnDual(board)) spawn(board);
+      } else {
+        spawn(board);
+      }
+      setPendingDualSpawn(false);
+    }, 120);
+    return () => clearTimeout(id);
+  }, [screen, gameOver, paused, animating, pieces.length, pendingDualSpawn, gameMode, board]);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
