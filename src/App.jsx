@@ -14,6 +14,7 @@ const SETTLE_TICK_MS = 45;
 const MULTIPLIER_DURATION_MS = 20000;
 const SLOWMO_DURATION_MS = 10000;
 const REVERSE_DURATION_MS = 10000;
+const BOMB_FLASH_INTERVAL_MS = 65;
 const POWERUP_TURNS = 6;
 const MAX_SCORE_MULTIPLIER = 6;
 
@@ -307,6 +308,7 @@ export default function FourDirectionTetris() {
   const [slowMoUntil, setSlowMoUntil] = useState(0);
   const [reverseUntil, setReverseUntil] = useState(0);
   const [pendingCursedPiece, setPendingCursedPiece] = useState(false);
+  const [pendingBombPiece, setPendingBombPiece] = useState(false);
   const holdDelayRef = useRef(null);
   const holdIntervalRef = useRef(null);
 
@@ -340,6 +342,7 @@ export default function FourDirectionTetris() {
     setSlowMoUntil(0);
     setReverseUntil(0);
     setPendingCursedPiece(false);
+    setPendingBombPiece(false);
     setHasExtraLife(false);
     setScreenFlash(false);
     setGameOver(false);
@@ -437,6 +440,30 @@ export default function FourDirectionTetris() {
             y,
             size:3,
             type:'reverse',
+            turnsLeft: POWERUP_TURNS,
+            collected:false
+          };
+        }
+
+        if (roll < 0.985) {
+          return {
+            id: crypto.randomUUID(),
+            x,
+            y,
+            size:3,
+            type:'cursed',
+            turnsLeft: POWERUP_TURNS,
+            collected:false
+          };
+        }
+
+        if (roll < 0.995) {
+          return {
+            id: crypto.randomUUID(),
+            x,
+            y,
+            size:3,
+            type:'bomb',
             turnsLeft: POWERUP_TURNS,
             collected:false
           };
@@ -550,6 +577,8 @@ export default function FourDirectionTetris() {
     const dualCollected = collected.some(p => p.type === 'dual');
     const slowMoCollected = collected.some(p => p.type === 'slowmo');
     const reverseCollected = collected.some(p => p.type === 'reverse');
+    const cursedCollected = collected.some(p => p.type === 'cursed');
+    const bombCollected = collected.some(p => p.type === 'bomb');
     const multiplierPickups = collected.filter(p => p.type === 'multiplier');
     const strongest = multiplierPickups.length
       ? Math.max(...multiplierPickups.map(p => p.multiplier))
@@ -599,6 +628,18 @@ export default function FourDirectionTetris() {
       setTimeout(() => setMultiplierPopup(""), 900);
     }
 
+    if (cursedCollected) {
+      setPendingCursedPiece(true);
+      setMultiplierPopup("CURSED NEXT");
+      setTimeout(() => setMultiplierPopup(""), 1000);
+    }
+
+    if (bombCollected) {
+      setPendingBombPiece(true);
+      setMultiplierPopup("BOMB NEXT");
+      setTimeout(() => setMultiplierPopup(""), 900);
+    }
+
     setScoreFlash("");
     setDestroyedPiece(activePiece);
 
@@ -610,8 +651,8 @@ export default function FourDirectionTetris() {
       }
 
       addScore(
-        lifeCollected ? 100 : missileCollected ? 150 : dualCollected ? 180 : slowMoCollected ? 120 : reverseCollected ? 120 : 25 * strongest,
-        lifeCollected ? "life" : missileCollected ? "missile" : dualCollected ? "dual" : slowMoCollected ? "slow" : reverseCollected ? "reverse" : "orb"
+        lifeCollected ? 100 : missileCollected ? 150 : dualCollected ? 180 : slowMoCollected ? 120 : reverseCollected ? 120 : cursedCollected ? 140 : bombCollected ? 140 : 25 * strongest,
+        lifeCollected ? "life" : missileCollected ? "missile" : dualCollected ? "dual" : slowMoCollected ? "slow" : reverseCollected ? "reverse" : cursedCollected ? "cursed" : bombCollected ? "bomb" : "orb"
       );
 
     }, 220);
@@ -724,6 +765,7 @@ export default function FourDirectionTetris() {
         setSlowMoUntil(0);
         setReverseUntil(0);
         setPendingCursedPiece(false);
+        setPendingBombPiece(false);
 
         setTimeout(() => {
           setMultiplierPopup("");
@@ -744,6 +786,10 @@ export default function FourDirectionTetris() {
   }
 
   function nextSpawnPiece(forcedSide = null) {
+    if (pendingBombPiece) {
+      setPendingBombPiece(false);
+      return { ...randomPiece(forcedSide), isBomb: true };
+    }
     if (pendingCursedPiece) {
       setPendingCursedPiece(false);
       return randomPiece(forcedSide, CURSED_SHAPES);
@@ -752,6 +798,50 @@ export default function FourDirectionTetris() {
       return randomPiece(forcedSide, CURSED_SHAPES);
     }
     return randomPiece(forcedSide);
+  }
+
+  function triggerBombPieceLock(startBoard, bombPiece) {
+    const merged = merge(startBoard, bombPiece);
+    const bombKeys = new Set(
+      pieceCells(bombPiece)
+        .filter(({ x, y }) => !outsideBarrier(x, y))
+        .map(({ x, y }) => `${x},${y}`)
+    );
+
+    setBoard(merged);
+    setPieces([]);
+    setAnimating(true);
+    addScore(10, "land");
+
+    let flashes = 0;
+    const pulse = () => {
+      setFlashKeys(new Set(bombKeys));
+      setTimeout(() => {
+        setFlashKeys(new Set());
+        flashes++;
+        if (flashes < 3) {
+          setTimeout(pulse, BOMB_FLASH_INTERVAL_MS);
+          return;
+        }
+
+        const clearKeys = new Set();
+        for (const { x, y } of pieceCells(bombPiece)) {
+          for (let yy = y - 1; yy <= y + 1; yy++) {
+            for (let xx = x - 1; xx <= x + 1; xx++) {
+              if (outsideBarrier(xx, yy) || isCoreCell(xx, yy)) continue;
+              if (merged[yy][xx]) clearKeys.add(`${xx},${yy}`);
+            }
+          }
+        }
+
+        const blasted = applyClear(merged, clearKeys);
+        setBoard(blasted);
+        addScore(clearKeys.size * 12, "bomb");
+        settleAnimated(blasted);
+      }, BOMB_FLASH_INTERVAL_MS);
+    };
+
+    pulse();
   }
 
   function spawn(nextBoard) {
@@ -809,6 +899,7 @@ export default function FourDirectionTetris() {
     setSlowMoUntil(0);
     setReverseUntil(0);
     setPendingCursedPiece(false);
+    setPendingBombPiece(false);
     setHasExtraLife(false);
     setScreenFlash(false);
     setGameOver(false);
@@ -916,6 +1007,10 @@ export default function FourDirectionTetris() {
       const ny = activePiece.y + dy;
 
       if (overlapsBoard(currentBoard, activePiece, nx, ny)) {
+        if (activePiece.isBomb) {
+          triggerBombPieceLock(currentBoard, activePiece);
+          return;
+        }
         currentBoard = merge(currentBoard, activePiece);
         setBoard(currentBoard);
         addScore(10, "land");
@@ -1139,6 +1234,9 @@ export default function FourDirectionTetris() {
         if (key === "5") spawnDebugPowerUp("dual");
         if (key === "6") spawnDebugPowerUp("life");
         if (key === "7") spawnDebugPowerUp("slowmo");
+        if (key === "8") spawnDebugPowerUp("cursed");
+        if (key === "0") spawnDebugPowerUp("reverse");
+        if (key === "9") spawnDebugPowerUp("bomb");
       }
 
       const piece = pieces[0];
@@ -1285,6 +1383,12 @@ export default function FourDirectionTetris() {
       if (power.type === 'reverse') {
         color = flashOn ? '#ffffff' : '#a855f7';
       }
+      if (power.type === 'cursed') {
+        color = flashOn ? '#ffffff' : '#a855f7';
+      }
+      if (power.type === 'bomb') {
+        color = flashOn ? '#ffffff' : '#f97316';
+      }
       if (power.type === 'slowmo') {
         color = flashOn ? '#ffffff' : '#22d3ee';
       }
@@ -1300,7 +1404,9 @@ export default function FourDirectionTetris() {
       destroyedPiece.shape.forEach((row, r) => row.forEach((cell, c) => cell && drawCell(destroyedPiece.x + c, destroyedPiece.y + r, flashOn ? "#ffffff" : destroyedPiece.color)));
     } else if (!animating && pieces.length) {
       pieces.forEach(activePiece => {
-        activePiece.shape.forEach((row, r) => row.forEach((cell, c) => cell && drawCell(activePiece.x + c, activePiece.y + r, activePiece.color)));
+        const bombFlashOn = activePiece.isBomb && Math.floor(Date.now() / 90) % 2 === 0;
+        const renderColor = bombFlashOn ? "#ffffff" : activePiece.color;
+        activePiece.shape.forEach((row, r) => row.forEach((cell, c) => cell && drawCell(activePiece.x + c, activePiece.y + r, renderColor)));
       });
     }
 
@@ -1482,7 +1588,7 @@ export default function FourDirectionTetris() {
                   checked={devMode}
                   onChange={e => setDevMode(e.target.checked)}
                 />
-                Dev mode (2=x2, 3=x3, 4=missile, 5=dual, 6=life, 7=slow-mo)
+                Dev mode (2=x2, 3=x3, 4=missile, 5=dual, 6=life, 7=slow-mo, 8=cursed, 9=bomb, 0=reverse)
               </label>
               <button onClick={startGame} style={{ padding:'12px 32px', borderRadius:'12px', background:'#2563eb', color:'white', border:'none', cursor:'pointer', fontWeight:'bold' }}>Play</button>
             </div>
