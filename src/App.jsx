@@ -49,9 +49,9 @@ function rotate(shape) {
   return shape[0].map((_, i) => shape.map(row => row[i]).reverse());
 }
 
-function randomPiece() {
+function randomPiece(forcedSide = null) {
   const index = Math.floor(Math.random() * SHAPES.length);
-  const side = ["top", "right", "bottom", "left"][Math.floor(Math.random() * 4)];
+  const side = forcedSide || ["top", "right", "bottom", "left"][Math.floor(Math.random() * 4)];
   const shape = SHAPES[index];
   let x = CENTRE - Math.floor(shape[0].length / 2);
   let y = CENTRE - Math.floor(shape.length / 2);
@@ -61,7 +61,14 @@ function randomPiece() {
   if (side === "left") x = SAFE_MIN;
   if (side === "right") x = SAFE_MAX - shape[0].length + 1;
 
-  return { shape, color: COLORS[index], x, y, side };
+  return { id: crypto.randomUUID(), shape, color: COLORS[index], x, y, side };
+}
+
+function oppositeSide(side) {
+  if (side === "top") return "bottom";
+  if (side === "bottom") return "top";
+  if (side === "left") return "right";
+  return "left";
 }
 
 function directionVector(side) {
@@ -265,7 +272,7 @@ function BlockTitle() {
 export default function FourDirectionTetris() {
   const canvasRef = useRef(null);
   const [board, setBoard] = useState(emptyBoard());
-  const [piece, setPiece] = useState(null);
+  const [pieces, setPieces] = useState([]);
   const [score, setScore] = useState(0);
   const [level, setLevel] = useState(1);
   const [selectedLevel, setSelectedLevel] = useState(1);
@@ -286,6 +293,7 @@ export default function FourDirectionTetris() {
   const [hasExtraLife, setHasExtraLife] = useState(false);
   const [screenFlash, setScreenFlash] = useState(false);
   const [missileEffect, setMissileEffect] = useState(null);
+  const [pendingDualSpawn, setPendingDualSpawn] = useState(false);
   const holdDelayRef = useRef(null);
   const holdIntervalRef = useRef(null);
 
@@ -304,7 +312,7 @@ export default function FourDirectionTetris() {
 
   function resetToTitle() {
     setBoard(emptyBoard());
-    setPiece(null);
+    setPieces([]);
     setScore(0);
     setLevel(selectedLevel);
     setScoreMultiplier(1);
@@ -315,6 +323,9 @@ export default function FourDirectionTetris() {
     setPowerUps([]);
     setDestroyedPiece(null);
     setMissileEffect(null);
+    setPendingDualSpawn(false);
+    setHasExtraLife(false);
+    setScreenFlash(false);
     setGameOver(false);
     setFailReason("");
     setPaused(false);
@@ -377,6 +388,18 @@ export default function FourDirectionTetris() {
           };
         }
 
+        if (roll < 0.985) {
+          return {
+            id: crypto.randomUUID(),
+            x,
+            y,
+            size:3,
+            type:'dual',
+            turnsLeft: POWERUP_TURNS,
+            collected:false
+          };
+        }
+
         if (!hasExtraLife) {
           return {
             id: crypto.randomUUID(),
@@ -419,8 +442,10 @@ export default function FourDirectionTetris() {
     });
   }
 
-  function collectPowerUps(activePiece) {
-    if (gameMode !== "arcade" || !activePiece || !powerUps.length) return false;
+  function collectPowerUps(activePiece, sourceBoard = board, hasOtherActivePiece = false) {
+    if (gameMode !== "arcade" || !activePiece || !powerUps.length) {
+      return { collected: false, removePiece: false };
+    }
 
     const cells = pieceCells(activePiece);
     const collected = powerUps.filter(power => {
@@ -433,10 +458,11 @@ export default function FourDirectionTetris() {
       );
     });
 
-    if (!collected.length) return false;
+    if (!collected.length) return { collected: false, removePiece: false };
 
     const lifeCollected = collected.some(p => p.type === 'life');
     const missileCollected = collected.some(p => p.type === 'missile');
+    const dualCollected = collected.some(p => p.type === 'dual');
     const multiplierPickups = collected.filter(p => p.type === 'multiplier');
     const strongest = multiplierPickups.length
       ? Math.max(...multiplierPickups.map(p => p.multiplier))
@@ -448,9 +474,10 @@ export default function FourDirectionTetris() {
       collectedIds.has(power.id) ? { ...power, collected:true } : power
     )));
 
-    if (multiplierPickups.length) {
+    const multiplierBonus = dualCollected ? 2 : 1;
+    if (multiplierPickups.length || dualCollected) {
       setScoreMultiplier(prev => {
-        const next = Math.min(MAX_SCORE_MULTIPLIER, prev * strongest);
+        const next = Math.min(MAX_SCORE_MULTIPLIER, prev * strongest * multiplierBonus);
         setMultiplierPopup(`x${next}`);
         setTimeout(() => setMultiplierPopup(""), 900);
         return next;
@@ -467,31 +494,33 @@ export default function FourDirectionTetris() {
       setMultiplierPopup("");
     }
 
+    if (dualCollected) {
+      setPendingDualSpawn(true);
+      setMultiplierPopup("DUAL");
+      setTimeout(() => setMultiplierPopup(""), 900);
+    }
+
     setScoreFlash("");
     setDestroyedPiece(activePiece);
-    setPiece(null);
-    setAnimating(true);
 
     setTimeout(() => {
       setPowerUps(prev => prev.filter(p => !collectedIds.has(p.id)));
       setDestroyedPiece(null);
       if (missileCollected) {
-          fireMissile(board, missileSource);
-        }
+        fireMissile(sourceBoard, missileSource, hasOtherActivePiece);
+      }
 
-        addScore(lifeCollected ? 100 : missileCollected ? 150 : 25 * strongest, lifeCollected ? "life" : missileCollected ? "missile" : "orb");
+      addScore(
+        lifeCollected ? 100 : missileCollected ? 150 : dualCollected ? 180 : 25 * strongest,
+        lifeCollected ? "life" : missileCollected ? "missile" : dualCollected ? "dual" : "orb"
+      );
 
-      setTimeout(() => {
-        setAnimating(false);
-        maybeSpawnPowerUp(board);
-        spawn(board);
-      }, 90);
     }, 220);
 
-    return true;
+    return { collected: true, removePiece: true };
   }
 
-  function fireMissile(currentBoard, missileSource) {
+  function fireMissile(currentBoard, missileSource, skipSettle = false) {
     const targets = [];
     for (let y = SAFE_MIN; y <= SAFE_MAX; y++) {
       for (let x = SAFE_MIN; x <= SAFE_MAX; x++) {
@@ -571,10 +600,41 @@ export default function FourDirectionTetris() {
           setMissileEffect(null);
           setBoard(blasted);
           addScore(clearKeys.size * 10, "blast");
+          if (skipSettle) return;
           settleAnimated(blasted);
         }, 140);
       }
     }, 35);
+  }
+
+  function handleDeath(reason = "Barrier breached") {
+    if (hasExtraLife) {
+      setHasExtraLife(false);
+      setScreenFlash(true);
+      setAnimating(true);
+      setPendingDualSpawn(false);
+
+      setTimeout(() => {
+        const freshBoard = emptyBoard();
+        setBoard(freshBoard);
+        setPieces([]);
+        setDestroyedPiece(null);
+        setPowerUps([]);
+        setScreenFlash(false);
+        setMultiplierPopup("EXTRA LIFE");
+
+        setTimeout(() => {
+          setMultiplierPopup("");
+          setAnimating(false);
+          spawn(freshBoard);
+        }, 900);
+      }, 180);
+      return true;
+    }
+
+    setFailReason(reason);
+    setGameOver(true);
+    return false;
   }
 
   function spawn(nextBoard) {
@@ -586,14 +646,33 @@ export default function FourDirectionTetris() {
       setFailReason("Spawn outside barrier");
       setGameOver(true);
     } else {
-      setPiece(p);
+      setPieces([p]);
     }
+  }
+
+  function spawnDual(nextBoard) {
+    const first = randomPiece();
+    const second = randomPiece(oppositeSide(first.side));
+    const overlapEachOther = pieceCells(first).some(a =>
+      pieceCells(second).some(b => a.x === b.x && a.y === b.y)
+    );
+
+    if (
+      overlapsBoard(nextBoard, first) || breachesBarrier(first) ||
+      overlapsBoard(nextBoard, second) || breachesBarrier(second) ||
+      overlapEachOther
+    ) {
+      return false;
+    }
+
+    setPieces([first, second]);
+    return true;
   }
 
   function startGame() {
     const freshBoard = emptyBoard();
     setBoard(freshBoard);
-    setPiece(null);
+    setPieces([]);
     setScore(0);
     setLevel(selectedLevel);
     setLevelMessage("");
@@ -602,6 +681,9 @@ export default function FourDirectionTetris() {
     setPowerUps([]);
     setDestroyedPiece(null);
     setMissileEffect(null);
+    setPendingDualSpawn(false);
+    setHasExtraLife(false);
+    setScreenFlash(false);
     setGameOver(false);
     setFailReason("");
     setPaused(false);
@@ -655,18 +737,19 @@ export default function FourDirectionTetris() {
         if (totalBonus) addScore(totalBonus, "loose");
         setAnimating(false);
         maybeSpawnPowerUp(current);
-        spawn(current);
+        if (pendingDualSpawn && gameMode === "arcade" && !spawnDual(current)) {
+          spawn(current);
+        } else if (!pendingDualSpawn || gameMode !== "arcade") {
+          spawn(current);
+        }
+        setPendingDualSpawn(false);
       }
     };
 
     run();
   }
 
-  function lockPiece(p = piece) {
-    if (!p) return;
-
-    addScore(10, "land");
-    const merged = merge(board, p);
+  function finalizeLockedBoard(merged) {
     const result = clearMatches(merged);
     setBoard(merged);
 
@@ -689,131 +772,128 @@ export default function FourDirectionTetris() {
   }
 
   function step() {
-    if (screen !== "playing" || gameOver || paused || animating || !piece) return;
-    const { dx, dy } = directionVector(piece.side);
-    const nx = piece.x + dx;
-    const ny = piece.y + dy;
+    if (screen !== "playing" || gameOver || paused || animating || !pieces.length) return;
 
-    if (overlapsBoard(board, piece, nx, ny)) {
-      lockPiece(piece);
-      return;
+    let currentBoard = board;
+    const survivors = [];
+
+    for (const activePiece of pieces) {
+      const { dx, dy } = directionVector(activePiece.side);
+      const nx = activePiece.x + dx;
+      const ny = activePiece.y + dy;
+
+      if (overlapsBoard(currentBoard, activePiece, nx, ny)) {
+        currentBoard = merge(currentBoard, activePiece);
+        setBoard(currentBoard);
+        addScore(10, "land");
+        continue;
+      }
+
+      const movedPiece = { ...activePiece, x: nx, y: ny };
+      const pickup = collectPowerUps(movedPiece, currentBoard, pieces.length > 1);
+      if (pickup.collected && pickup.removePiece) continue;
+
+      if (breachesBarrier(activePiece, nx, ny)) {
+        if (handleDeath()) return;
+        return;
+      }
+
+      survivors.push(movedPiece);
     }
 
-    const movedPiece = { ...piece, x: nx, y: ny };
-    if (collectPowerUps(movedPiece)) return;
-    setPiece(movedPiece);
-    if (breachesBarrier(piece, nx, ny)) {
-      if (hasExtraLife) {
-        setHasExtraLife(false);
-        setScreenFlash(true);
-        setAnimating(true);
-
-        setTimeout(() => {
-          const freshBoard = emptyBoard();
-          setBoard(freshBoard);
-          setPiece(null);
-          setDestroyedPiece(null);
-          setPowerUps([]);
-          setScreenFlash(false);
-          setMultiplierPopup("EXTRA LIFE");
-
-          setTimeout(() => {
-            setMultiplierPopup("");
-            setAnimating(false);
-            spawn(freshBoard);
-          }, 900);
-        }, 180);
-      } else {
-        setFailReason("Barrier breached");
-        setGameOver(true);
-      }
+    setPieces(survivors);
+    if (!survivors.length && !animating) {
+      finalizeLockedBoard(currentBoard);
     }
   }
 
   function moveRelative(direction) {
-    if (screen !== "playing" || gameOver || paused || animating || !piece) return;
+    if (screen !== "playing" || gameOver || paused || animating || !pieces.length) return;
+    const nextPieces = [];
 
-    let nx = piece.x;
-    let ny = piece.y;
+    for (const activePiece of pieces) {
+      let nx = activePiece.x;
+      let ny = activePiece.y;
 
-    if (piece.side === "top") {
-      if (direction === "left") nx -= 1;
-      if (direction === "right") nx += 1;
-      if (direction === "forward") ny += 1;
-    } else if (piece.side === "bottom") {
-      if (direction === "left") nx += 1;
-      if (direction === "right") nx -= 1;
-      if (direction === "forward") ny -= 1;
-    } else if (piece.side === "right") {
-      if (direction === "left") ny += 1;
-      if (direction === "right") ny -= 1;
-      if (direction === "forward") nx -= 1;
-    } else if (piece.side === "left") {
-      if (direction === "left") ny -= 1;
-      if (direction === "right") ny += 1;
-      if (direction === "forward") nx += 1;
+      if (activePiece.side === "top") {
+        if (direction === "left") nx -= 1;
+        if (direction === "right") nx += 1;
+        if (direction === "forward") ny += 1;
+      } else if (activePiece.side === "bottom") {
+        if (direction === "left") nx += 1;
+        if (direction === "right") nx -= 1;
+        if (direction === "forward") ny -= 1;
+      } else if (activePiece.side === "right") {
+        if (direction === "left") ny += 1;
+        if (direction === "right") ny -= 1;
+        if (direction === "forward") nx -= 1;
+      } else if (activePiece.side === "left") {
+        if (direction === "left") ny -= 1;
+        if (direction === "right") ny += 1;
+        if (direction === "forward") nx += 1;
+      }
+
+      if (!validSideMove(board, activePiece, nx, ny)) {
+        nextPieces.push(activePiece);
+        continue;
+      }
+
+      const movedPiece = { ...activePiece, x: nx, y: ny };
+      const pickup = collectPowerUps(movedPiece, board, pieces.length > 1);
+      if (!(pickup.collected && pickup.removePiece)) {
+        nextPieces.push(movedPiece);
+      }
     }
 
-    if (validSideMove(board, piece, nx, ny)) {
-      const movedPiece = { ...piece, x: nx, y: ny };
-      if (collectPowerUps(movedPiece)) return;
-      setPiece(movedPiece);
-    }
+    setPieces(nextPieces);
   }
 
   function rotatePiece() {
-    if (screen !== "playing" || gameOver || paused || animating || !piece) return;
-    const rotated = rotate(piece.shape);
-    if (validSideMove(board, piece, piece.x, piece.y, rotated)) {
-      const rotatedPiece = { ...piece, shape: rotated };
-      if (collectPowerUps(rotatedPiece)) return;
-      setPiece(rotatedPiece);
+    if (screen !== "playing" || gameOver || paused || animating || !pieces.length) return;
+    const nextPieces = [];
+    for (const activePiece of pieces) {
+      const rotated = rotate(activePiece.shape);
+      if (validSideMove(board, activePiece, activePiece.x, activePiece.y, rotated)) {
+        const rotatedPiece = { ...activePiece, shape: rotated };
+        const pickup = collectPowerUps(rotatedPiece, board, pieces.length > 1);
+        if (!(pickup.collected && pickup.removePiece)) {
+          nextPieces.push(rotatedPiece);
+        }
+      } else {
+        nextPieces.push(activePiece);
+      }
     }
+    setPieces(nextPieces);
   }
 
   function drop() {
-    if (screen !== "playing" || gameOver || paused || animating || !piece) return;
-    let p = { ...piece };
-    const { dx, dy } = directionVector(p.side);
+    if (screen !== "playing" || gameOver || paused || animating || !pieces.length) return;
+    addScore(25, "drop");
 
-    while (!overlapsBoard(board, p, p.x + dx, p.y + dy)) {
-      p.x += dx;
-      p.y += dy;
-      if (breachesBarrier(p)) {
-        setPiece(p);
-        if (hasExtraLife) {
-        setHasExtraLife(false);
-        setScreenFlash(true);
-        setAnimating(true);
+    let currentBoard = board;
+    for (const activePiece of pieces) {
+      let p = { ...activePiece };
+      const { dx, dy } = directionVector(p.side);
 
-        setTimeout(() => {
-          const freshBoard = emptyBoard();
-          setBoard(freshBoard);
-          setPiece(null);
-          setDestroyedPiece(null);
-          setPowerUps([]);
-          setScreenFlash(false);
-          setMultiplierPopup("EXTRA LIFE");
-
-          setTimeout(() => {
-            setMultiplierPopup("");
-            setAnimating(false);
-            spawn(freshBoard);
-          }, 900);
-        }, 180);
-      } else {
-        setFailReason("Barrier breached");
-        setGameOver(true);
+      while (!overlapsBoard(currentBoard, p, p.x + dx, p.y + dy)) {
+        p.x += dx;
+        p.y += dy;
+        if (breachesBarrier(p)) {
+          if (handleDeath()) return;
+          return;
+        }
       }
-        return;
-      }
+      currentBoard = merge(currentBoard, p);
+      setBoard(currentBoard);
+      addScore(10, "land");
     }
 
-    addScore(25, "drop");
-    lockPiece(p);
+    setPieces([]);
+    finalizeLockedBoard(currentBoard);
   }
 
   function getPadLabels() {
+    const piece = pieces[0];
     if (!piece) {
       return {
         top: "ROTATE",
@@ -837,7 +917,8 @@ export default function FourDirectionTetris() {
   }
 
   function triggerPad(position) {
-    if (!piece) return;
+    if (!pieces.length) return;
+    const piece = pieces[0];
 
     if (position === "center") {
       drop();
@@ -891,6 +972,7 @@ export default function FourDirectionTetris() {
 
   useEffect(() => {
     const onKey = e => {
+      const piece = pieces[0];
       if (!piece) return;
 
       if (piece.side === "top") {
@@ -921,13 +1003,13 @@ export default function FourDirectionTetris() {
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  });
+  }, [pieces, screen, gameOver, paused, animating, board, powerUps, hasExtraLife, scoreMultiplier, gameMode]);
 
   useEffect(() => {
     const speed = Math.max(28, Math.floor(560 * Math.pow(0.68, level - 1)));
     const id = setInterval(step, speed);
     return () => clearInterval(id);
-  });
+  }, [level, step]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -992,6 +1074,9 @@ export default function FourDirectionTetris() {
       if (power.type === 'missile') {
         color = flashOn ? '#ffffff' : '#ffb000';
       }
+      if (power.type === 'dual') {
+        color = flashOn ? '#ffffff' : '#a855f7';
+      }
 
       ctx.fillStyle = color;
       ctx.fillRect(px, py, size, size);
@@ -1002,8 +1087,10 @@ export default function FourDirectionTetris() {
     if (destroyedPiece) {
       const flashOn = Math.floor(Date.now() / 80) % 2 === 0;
       destroyedPiece.shape.forEach((row, r) => row.forEach((cell, c) => cell && drawCell(destroyedPiece.x + c, destroyedPiece.y + r, flashOn ? "#ffffff" : destroyedPiece.color)));
-    } else if (!animating && piece) {
-      piece.shape.forEach((row, r) => row.forEach((cell, c) => cell && drawCell(piece.x + c, piece.y + r, piece.color)));
+    } else if (!animating && pieces.length) {
+      pieces.forEach(activePiece => {
+        activePiece.shape.forEach((row, r) => row.forEach((cell, c) => cell && drawCell(activePiece.x + c, activePiece.y + r, activePiece.color)));
+      });
     }
 
     if (screen === "countdown" && countdown) {
@@ -1033,19 +1120,21 @@ export default function FourDirectionTetris() {
       }
 
       if (missileEffect.phase === 'blast') {
+        const pulse = 0.55 + 0.45 * Math.sin(Date.now() / 55);
         missileEffect.affected.forEach(cell => {
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(cell.x * CELL + 1, cell.y * CELL + 1, CELL - 2, CELL - 2);
-        });
+          const cx = cell.x * CELL + CELL / 2;
+          const cy = cell.y * CELL + CELL / 2;
+          const r = CELL * (0.38 + pulse * 0.2);
 
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 4;
-        const minX = Math.min(...missileEffect.affected.map(c => c.x));
-        const maxX = Math.max(...missileEffect.affected.map(c => c.x));
-        const minY = Math.min(...missileEffect.affected.map(c => c.y));
-        const maxY = Math.max(...missileEffect.affected.map(c => c.y));
-        ctx.strokeRect(minX * CELL, minY * CELL, (maxX - minX + 1) * CELL, (maxY - minY + 1) * CELL);
-        ctx.lineWidth = 1;
+          const blast = ctx.createRadialGradient(cx, cy, 1, cx, cy, r);
+          blast.addColorStop(0, "rgba(255,255,255,0.95)");
+          blast.addColorStop(0.55, "rgba(253,224,71,0.70)");
+          blast.addColorStop(1, "rgba(249,115,22,0)");
+          ctx.fillStyle = blast;
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.fill();
+        });
       }
     }
 
@@ -1072,15 +1161,15 @@ export default function FourDirectionTetris() {
       ctx.font = "16px sans-serif";
       ctx.fillText(failReason || "Game ended", canvas.width / 2, canvas.height / 2 + 34);
     }
-  }, [board, piece, gameOver, failReason, animating, flashKeys, screen, countdown, powerUps, multiplierPopup, destroyedPiece, missileEffect]);
+  }, [board, pieces, gameOver, failReason, animating, flashKeys, screen, countdown, powerUps, multiplierPopup, destroyedPiece, missileEffect]);
 
   const padLabels = getPadLabels();
 
   return (
-    <div style={{ minHeight:'100vh', color:'white', display:'flex', alignItems:'center', justifyContent:'center', padding:'28px', width:'100%', background:'radial-gradient(circle at top, #1e293b 0%, #0f172a 42%, #020617 100%)', fontFamily:'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif' }}>
-      <div style={{ margin:'0 auto', width:'min-content', background:'linear-gradient(180deg, rgba(15,23,42,0.96), rgba(2,6,23,0.98))', border:'1px solid rgba(148,163,184,0.25)', borderRadius:'24px', padding:'24px', boxShadow:'0 30px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06)' }}>
+    <div style={{ minHeight:'100vh', color:'white', display:'flex', alignItems:'center', justifyContent:'center', padding:'8px', width:'100%', maxWidth:'100vw', overflowX:'hidden', background:'radial-gradient(circle at top, #1e293b 0%, #0f172a 42%, #020617 100%)', fontFamily:'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif', boxSizing:'border-box' }}>
+      <div style={{ margin:'0 auto', width:'100%', maxWidth:'920px', background:'linear-gradient(180deg, rgba(15,23,42,0.96), rgba(2,6,23,0.98))', border:'1px solid rgba(148,163,184,0.25)', borderRadius:'24px', padding:'12px', boxShadow:'0 30px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06)', boxSizing:'border-box' }}>
         <div style={{ display:'grid', gap:'18px', position:'relative' }}>
-          <div style={{ display:'grid', gridTemplateColumns:'160px auto 160px', alignItems:'center', gap:'14px' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'minmax(120px, 160px) minmax(0, 1fr)', alignItems:'center', gap:'12px' }}>
             <div style={{ textAlign:'left', background:'rgba(15,23,42,0.82)', border:'1px solid rgba(148,163,184,0.22)', borderRadius:'14px', padding:'10px 12px', minWidth:'126px', backdropFilter:'blur(10px)' }}>
               <div style={{ fontSize:'11px', letterSpacing:'0.14em', textTransform:'uppercase', color:'#94a3b8' }}>Score</div>
               <div style={{ fontSize:'28px', fontWeight:800, lineHeight:1 }}>{Math.floor(score)}</div>
@@ -1101,7 +1190,6 @@ export default function FourDirectionTetris() {
             <p style={{ color:'#cbd5e1', fontSize:'14px', margin:'6px 0 0' }}>Build from the centre. Clear 4×4 blocks. Do not breach the red perimeter.</p>
             </div>
 
-            <div />
           </div>
 
           {levelMessage && (
@@ -1168,19 +1256,21 @@ export default function FourDirectionTetris() {
             ref={canvasRef}
             width={GRID * CELL}
             height={GRID * CELL}
-            style={{ borderRadius:'18px', border:'1px solid rgba(148,163,184,0.32)', background:'#020617', boxShadow:'0 18px 50px rgba(0,0,0,0.45)' }}
+            style={{ width:'min(100%, 560px)', height:'auto', margin:'0 auto', borderRadius:'18px', border:'1px solid rgba(148,163,184,0.32)', background:'#020617', boxShadow:'0 18px 50px rgba(0,0,0,0.45)', display:'block' }}
           />
 
           <div
             style={{
               display:'grid',
-              gridTemplateColumns:'86px 86px 86px',
-              gridTemplateRows:'58px 58px 58px',
-              gap:'8px',
+              gridTemplateColumns:'repeat(3, minmax(68px, 1fr))',
+              gridTemplateRows:'repeat(3, 56px)',
+              gap:'6px',
               justifyContent:'center',
               alignItems:'center',
               touchAction:'none',
-              userSelect:'none'
+              userSelect:'none',
+              width:'min(100%, 320px)',
+              margin:'0 auto'
             }}
           >
             <div />
@@ -1241,7 +1331,7 @@ export default function FourDirectionTetris() {
             <div />
           </div>
 
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px', fontSize:'13px', color:'#cbd5e1', background:'rgba(15,23,42,0.55)', border:'1px solid rgba(148,163,184,0.16)', borderRadius:'16px', padding:'12px' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:'8px', fontSize:'13px', color:'#cbd5e1', background:'rgba(15,23,42,0.55)', border:'1px solid rgba(148,163,184,0.16)', borderRadius:'16px', padding:'12px' }}>
             <div>← / → / WASD or pad: relative movement</div>
             <div>Space: hard drop</div>
             <div>4×4 squares clear</div>
