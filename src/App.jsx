@@ -12,6 +12,7 @@ const CORE_COLOR = "#f8fafc";
 const FLASH_MS = 160;
 const SETTLE_TICK_MS = 45;
 const MULTIPLIER_DURATION_MS = 20000;
+const SLOWMO_DURATION_MS = 10000;
 const POWERUP_TURNS = 6;
 const MAX_SCORE_MULTIPLIER = 6;
 
@@ -294,6 +295,7 @@ export default function FourDirectionTetris() {
   const [screenFlash, setScreenFlash] = useState(false);
   const [missileEffect, setMissileEffect] = useState(null);
   const [pendingDualSpawn, setPendingDualSpawn] = useState(false);
+  const [slowMoUntil, setSlowMoUntil] = useState(0);
   const holdDelayRef = useRef(null);
   const holdIntervalRef = useRef(null);
 
@@ -324,6 +326,7 @@ export default function FourDirectionTetris() {
     setDestroyedPiece(null);
     setMissileEffect(null);
     setPendingDualSpawn(false);
+    setSlowMoUntil(0);
     setHasExtraLife(false);
     setScreenFlash(false);
     setGameOver(false);
@@ -383,6 +386,18 @@ export default function FourDirectionTetris() {
             y,
             size:3,
             type:'missile',
+            turnsLeft: POWERUP_TURNS,
+            collected:false
+          };
+        }
+
+        if (roll < 0.93) {
+          return {
+            id: crypto.randomUUID(),
+            x,
+            y,
+            size:3,
+            type:'slowmo',
             turnsLeft: POWERUP_TURNS,
             collected:false
           };
@@ -463,6 +478,7 @@ export default function FourDirectionTetris() {
     const lifeCollected = collected.some(p => p.type === 'life');
     const missileCollected = collected.some(p => p.type === 'missile');
     const dualCollected = collected.some(p => p.type === 'dual');
+    const slowMoCollected = collected.some(p => p.type === 'slowmo');
     const multiplierPickups = collected.filter(p => p.type === 'multiplier');
     const strongest = multiplierPickups.length
       ? Math.max(...multiplierPickups.map(p => p.multiplier))
@@ -500,6 +516,12 @@ export default function FourDirectionTetris() {
       setTimeout(() => setMultiplierPopup(""), 900);
     }
 
+    if (slowMoCollected) {
+      setSlowMoUntil(prev => Math.max(prev, Date.now()) + SLOWMO_DURATION_MS);
+      setMultiplierPopup("SLOW MO");
+      setTimeout(() => setMultiplierPopup(""), 900);
+    }
+
     setScoreFlash("");
     setDestroyedPiece(activePiece);
 
@@ -511,8 +533,8 @@ export default function FourDirectionTetris() {
       }
 
       addScore(
-        lifeCollected ? 100 : missileCollected ? 150 : dualCollected ? 180 : 25 * strongest,
-        lifeCollected ? "life" : missileCollected ? "missile" : dualCollected ? "dual" : "orb"
+        lifeCollected ? 100 : missileCollected ? 150 : dualCollected ? 180 : slowMoCollected ? 120 : 25 * strongest,
+        lifeCollected ? "life" : missileCollected ? "missile" : dualCollected ? "dual" : slowMoCollected ? "slow" : "orb"
       );
 
     }, 220);
@@ -622,6 +644,7 @@ export default function FourDirectionTetris() {
         setPowerUps([]);
         setScreenFlash(false);
         setMultiplierPopup("EXTRA LIFE");
+        setSlowMoUntil(0);
 
         setTimeout(() => {
           setMultiplierPopup("");
@@ -682,6 +705,7 @@ export default function FourDirectionTetris() {
     setDestroyedPiece(null);
     setMissileEffect(null);
     setPendingDualSpawn(false);
+    setSlowMoUntil(0);
     setHasExtraLife(false);
     setScreenFlash(false);
     setGameOver(false);
@@ -776,8 +800,14 @@ export default function FourDirectionTetris() {
 
     let currentBoard = board;
     const survivors = [];
+    let crossedBarrier = false;
 
     for (const activePiece of pieces) {
+      if (breachesBarrier(activePiece)) {
+        if (handleDeath()) return;
+        return;
+      }
+
       const { dx, dy } = directionVector(activePiece.side);
       const nx = activePiece.x + dx;
       const ny = activePiece.y + dy;
@@ -793,15 +823,16 @@ export default function FourDirectionTetris() {
       const pickup = collectPowerUps(movedPiece, currentBoard, pieces.length > 1);
       if (pickup.collected && pickup.removePiece) continue;
 
-      if (breachesBarrier(activePiece, nx, ny)) {
-        if (handleDeath()) return;
-        return;
-      }
+      if (breachesBarrier(activePiece, nx, ny)) crossedBarrier = true;
 
       survivors.push(movedPiece);
     }
 
     setPieces(survivors);
+    if (crossedBarrier) {
+      setTimeout(() => handleDeath(), 0);
+      return;
+    }
     if (!survivors.length && !animating) {
       finalizeLockedBoard(currentBoard);
     }
@@ -871,6 +902,7 @@ export default function FourDirectionTetris() {
     addScore(25, "drop");
 
     let currentBoard = board;
+    let crossedPiece = null;
     for (const activePiece of pieces) {
       let p = { ...activePiece };
       const { dx, dy } = directionVector(p.side);
@@ -879,13 +911,20 @@ export default function FourDirectionTetris() {
         p.x += dx;
         p.y += dy;
         if (breachesBarrier(p)) {
-          if (handleDeath()) return;
-          return;
+          crossedPiece = p;
+          break;
         }
       }
+      if (crossedPiece) break;
       currentBoard = merge(currentBoard, p);
       setBoard(currentBoard);
       addScore(10, "land");
+    }
+
+    if (crossedPiece) {
+      setPieces([crossedPiece]);
+      setTimeout(() => handleDeath(), 0);
+      return;
     }
 
     setPieces([]);
@@ -1006,10 +1045,22 @@ export default function FourDirectionTetris() {
   }, [pieces, screen, gameOver, paused, animating, board, powerUps, hasExtraLife, scoreMultiplier, gameMode]);
 
   useEffect(() => {
-    const speed = Math.max(28, Math.floor(560 * Math.pow(0.68, level - 1)));
+    const baseSpeed = Math.max(28, Math.floor(560 * Math.pow(0.68, level - 1)));
+    const speed = slowMoUntil > Date.now() ? Math.round(baseSpeed * 1.85) : baseSpeed;
     const id = setInterval(step, speed);
     return () => clearInterval(id);
-  }, [level, step]);
+  }, [level, step, slowMoUntil]);
+
+  useEffect(() => {
+    if (!slowMoUntil) return;
+    const remaining = slowMoUntil - Date.now();
+    if (remaining <= 0) {
+      setSlowMoUntil(0);
+      return;
+    }
+    const id = setTimeout(() => setSlowMoUntil(0), remaining);
+    return () => clearTimeout(id);
+  }, [slowMoUntil]);
 
   useEffect(() => {
     if (screen !== "playing" || gameOver || paused || animating || pieces.length) return;
@@ -1089,6 +1140,9 @@ export default function FourDirectionTetris() {
       }
       if (power.type === 'dual') {
         color = flashOn ? '#ffffff' : '#a855f7';
+      }
+      if (power.type === 'slowmo') {
+        color = flashOn ? '#ffffff' : '#22d3ee';
       }
 
       ctx.fillStyle = color;
@@ -1183,11 +1237,11 @@ export default function FourDirectionTetris() {
       <div style={{ margin:'0 auto', width:'100%', maxWidth:'920px', background:'linear-gradient(180deg, rgba(15,23,42,0.96), rgba(2,6,23,0.98))', border:'1px solid rgba(148,163,184,0.25)', borderRadius:'24px', padding:'12px', boxShadow:'0 30px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06)', boxSizing:'border-box' }}>
         <div style={{ display:'grid', gap:'18px', position:'relative' }}>
           <div style={{ display:'grid', gridTemplateColumns:'minmax(120px, 160px) minmax(0, 1fr)', alignItems:'center', gap:'12px' }}>
-            <div style={{ textAlign:'left', background:'rgba(15,23,42,0.82)', border:'1px solid rgba(148,163,184,0.22)', borderRadius:'14px', padding:'10px 12px', minWidth:'126px', backdropFilter:'blur(10px)' }}>
+            <div style={{ textAlign:'left', background:'rgba(15,23,42,0.82)', border:'1px solid rgba(148,163,184,0.22)', borderRadius:'14px', padding:'10px 12px 28px', minWidth:'126px', backdropFilter:'blur(10px)', position:'relative' }}>
               <div style={{ fontSize:'11px', letterSpacing:'0.14em', textTransform:'uppercase', color:'#94a3b8' }}>Score</div>
               <div style={{ fontSize:'28px', fontWeight:800, lineHeight:1 }}>{Math.floor(score)}</div>
               <div style={{ fontSize:'12px', color:'#cbd5e1', marginTop:'4px' }}>Level {level}</div>
-              <div style={{ fontSize:'12px', color:'#6ee7b7', minHeight:'16px', marginTop:'2px' }}>{scoreFlash}</div>
+              <div style={{ position:'absolute', left:'12px', right:'12px', bottom:'8px', fontSize:'12px', color:'#6ee7b7', lineHeight:1.2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', pointerEvents:'none' }}>{scoreFlash}</div>
               <div style={{ height:'1px', background:'rgba(148,163,184,0.16)', margin:'8px 0' }} />
               <div style={{ fontSize:'10px', color:'#64748b' }}>4x4 clear = 100 × level</div>
               <div style={{ fontSize:'10px', color:'#64748b' }}>Loose block = 10 × level</div>
