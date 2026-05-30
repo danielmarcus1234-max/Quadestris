@@ -718,22 +718,25 @@ export default function FourDirectionTetris() {
   }
 
   function spawnDual(nextBoard) {
-    const first = randomPiece();
-    const second = randomPiece(oppositeSide(first.side));
-    const overlapEachOther = pieceCells(first).some(a =>
-      pieceCells(second).some(b => a.x === b.x && a.y === b.y)
-    );
+    for (let attempt = 0; attempt < 80; attempt++) {
+      const first = randomPiece();
+      const second = randomPiece(oppositeSide(first.side));
+      const overlapEachOther = pieceCells(first).some(a =>
+        pieceCells(second).some(b => a.x === b.x && a.y === b.y)
+      );
 
-    if (
-      overlapsBoard(nextBoard, first) || breachesBarrier(first) ||
-      overlapsBoard(nextBoard, second) || breachesBarrier(second) ||
-      overlapEachOther
-    ) {
-      return false;
+      if (
+        overlapsBoard(nextBoard, first) || breachesBarrier(first) ||
+        overlapsBoard(nextBoard, second) || breachesBarrier(second) ||
+        overlapEachOther
+      ) {
+        continue;
+      }
+
+      setPieces([first, second]);
+      return true;
     }
-
-    setPieces([first, second]);
-    return true;
+    return false;
   }
 
   function startGame() {
