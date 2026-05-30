@@ -278,6 +278,7 @@ export default function FourDirectionTetris() {
   const [level, setLevel] = useState(1);
   const [selectedLevel, setSelectedLevel] = useState(1);
   const [gameMode, setGameMode] = useState("classic");
+  const [devMode, setDevMode] = useState(false);
   const [screen, setScreen] = useState("title");
   const [countdown, setCountdown] = useState(null);
   const [gameOver, setGameOver] = useState(false);
@@ -440,6 +441,49 @@ export default function FourDirectionTetris() {
       }
     }
     return null;
+  }
+
+  function spawnDebugPowerUp(type) {
+    if (screen !== "playing" || gameMode !== "arcade") return;
+    for (let attempt = 0; attempt < 80; attempt++) {
+      const x = SAFE_MIN + Math.floor(Math.random() * (SAFE_MAX - SAFE_MIN));
+      const y = SAFE_MIN + Math.floor(Math.random() * (SAFE_MAX - SAFE_MIN));
+
+      let clearArea = true;
+      for (let yy = y; yy < y + 2; yy++) {
+        for (let xx = x; xx < x + 2; xx++) {
+          const occupiedByPowerUp = powerUps.some(p =>
+            xx >= p.x && xx < p.x + (p.size || 1) &&
+            yy >= p.y && yy < p.y + (p.size || 1)
+          );
+          if (board[yy][xx] || isCoreCell(xx, yy) || occupiedByPowerUp) clearArea = false;
+        }
+      }
+
+      if (!clearArea) continue;
+
+      const next = {
+        id: crypto.randomUUID(),
+        x,
+        y,
+        size: 3,
+        type,
+        turnsLeft: POWERUP_TURNS,
+        collected: false
+      };
+
+      if (type === "multiplier2") {
+        next.type = "multiplier";
+        next.multiplier = 2;
+      }
+      if (type === "multiplier3") {
+        next.type = "multiplier";
+        next.multiplier = 3;
+      }
+
+      setPowerUps(prev => [...prev, next]);
+      return;
+    }
   }
 
   function maybeSpawnPowerUp(board) {
@@ -1011,6 +1055,17 @@ export default function FourDirectionTetris() {
 
   useEffect(() => {
     const onKey = e => {
+      const key = e.key.toLowerCase();
+
+      if (devMode && screen === "playing" && gameMode === "arcade") {
+        if (key === "2") spawnDebugPowerUp("multiplier2");
+        if (key === "3") spawnDebugPowerUp("multiplier3");
+        if (key === "4") spawnDebugPowerUp("missile");
+        if (key === "5") spawnDebugPowerUp("dual");
+        if (key === "6") spawnDebugPowerUp("life");
+        if (key === "7") spawnDebugPowerUp("slowmo");
+      }
+
       const piece = pieces[0];
       if (!piece) return;
 
@@ -1037,12 +1092,12 @@ export default function FourDirectionTetris() {
       }
 
       if (e.key === " ") drop();
-      if (e.key.toLowerCase() === "p") setPaused(p => !p);
+      if (key === "p") setPaused(p => !p);
     };
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [pieces, screen, gameOver, paused, animating, board, powerUps, hasExtraLife, scoreMultiplier, gameMode]);
+  }, [pieces, screen, gameOver, paused, animating, board, powerUps, hasExtraLife, scoreMultiplier, gameMode, devMode]);
 
   useEffect(() => {
     const baseSpeed = Math.max(28, Math.floor(560 * Math.pow(0.68, level - 1)));
@@ -1218,6 +1273,14 @@ export default function FourDirectionTetris() {
       ctx.textAlign = 'left';
     }
 
+    if (levelMessage) {
+      ctx.fillStyle = "rgba(255,255,255,0.98)";
+      ctx.font = "bold 38px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(levelMessage, canvas.width / 2, 52);
+      ctx.textAlign = "left";
+    }
+
     if (gameOver) {
       ctx.fillStyle = "rgba(0,0,0,0.68)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1258,12 +1321,6 @@ export default function FourDirectionTetris() {
             </div>
 
           </div>
-
-          {levelMessage && (
-            <div className="absolute inset-x-0 top-24 text-center text-3xl font-bold text-white pointer-events-none z-20">
-              {levelMessage}
-            </div>
-          )}
 
           {screen === "title" && (
             <div style={{ position:'absolute', inset:'24px', top:'96px', zIndex:30, background:'linear-gradient(180deg, rgba(15,23,42,0.98), rgba(2,6,23,0.98))', border:'1px solid rgba(148,163,184,0.24)', borderRadius:'22px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'20px', textAlign:'center', boxShadow:'0 24px 70px rgba(0,0,0,0.62)' }}>
@@ -1315,6 +1372,14 @@ export default function FourDirectionTetris() {
                   {[1,2,3,4,5,6,7,8,9].map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
               </div>
+              <label style={{ display:'flex', alignItems:'center', gap:'8px', fontSize:'13px', color:'#cbd5e1' }}>
+                <input
+                  type="checkbox"
+                  checked={devMode}
+                  onChange={e => setDevMode(e.target.checked)}
+                />
+                Dev mode (2=x2, 3=x3, 4=missile, 5=dual, 6=life, 7=slow-mo)
+              </label>
               <button onClick={startGame} style={{ padding:'12px 32px', borderRadius:'12px', background:'#2563eb', color:'white', border:'none', cursor:'pointer', fontWeight:'bold' }}>Play</button>
             </div>
           )}
