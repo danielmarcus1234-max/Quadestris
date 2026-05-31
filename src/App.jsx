@@ -17,6 +17,7 @@ const REVERSE_DURATION_MS = 10000;
 const BOMB_FLASH_INTERVAL_MS = 65;
 const POWERUP_TURNS = 6;
 const MAX_SCORE_MULTIPLIER = 6;
+const HIGH_SCORES_KEY = "quadestris.highScores.v1";
 
 const SHAPES = [
   [[1, 1, 1, 1]],
@@ -288,6 +289,7 @@ export default function FourDirectionTetris() {
   const [board, setBoard] = useState(emptyBoard());
   const [pieces, setPieces] = useState([]);
   const [score, setScore] = useState(0);
+  const [highScores, setHighScores] = useState({ classic: [], arcade: [] });
   const [level, setLevel] = useState(1);
   const [selectedLevel, setSelectedLevel] = useState(1);
   const [gameMode, setGameMode] = useState("classic");
@@ -315,8 +317,12 @@ export default function FourDirectionTetris() {
   const [reverseUntil, setReverseUntil] = useState(0);
   const [pendingCursedPiece, setPendingCursedPiece] = useState(false);
   const [pendingBombPiece, setPendingBombPiece] = useState(false);
+  const [showHighScores, setShowHighScores] = useState(false);
+  const [highScoreMessage, setHighScoreMessage] = useState("");
+  const [runHighScoreAchieved, setRunHighScoreAchieved] = useState(false);
   const holdDelayRef = useRef(null);
   const holdIntervalRef = useRef(null);
+  const runScoreSavedRef = useRef(false);
 
   function levelForScore(points) {
     if (points >= 36500) return 9;
@@ -331,7 +337,62 @@ export default function FourDirectionTetris() {
     return 1;
   }
 
+  function leaderboardMode(mode = gameMode) {
+    if (mode === "classic") return "classic";
+    if (mode === "arcade") return "arcade";
+    return null;
+  }
+
+  function currentModeTopScore(mode = gameMode) {
+    const key = leaderboardMode(mode);
+    return key ? (highScores[key]?.[0] || 0) : 0;
+  }
+
+  function saveRunScore(points, mode = gameMode) {
+    const scoreValue = Math.floor(points);
+    if (scoreValue <= 0) return;
+    const key = leaderboardMode(mode);
+    if (!key) return;
+
+    setHighScores(prev => {
+      const next = { ...prev };
+      const list = [...(next[key] || []), scoreValue]
+        .sort((a, b) => b - a)
+        .slice(0, 10);
+      next[key] = list;
+      try {
+        localStorage.setItem(HIGH_SCORES_KEY, JSON.stringify(next));
+      } catch {
+        // Ignore storage failures.
+      }
+      return next;
+    });
+  }
+
+  function maybeFinalizeRunScore() {
+    if (runScoreSavedRef.current) return;
+    if (score <= 0) return;
+    saveRunScore(score, gameMode);
+    runScoreSavedRef.current = true;
+  }
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(HIGH_SCORES_KEY);
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (parsed && typeof parsed === "object") {
+        setHighScores({
+          classic: Array.isArray(parsed.classic) ? parsed.classic.filter(Number.isFinite).map(n => Math.floor(n)).slice(0, 10) : [],
+          arcade: Array.isArray(parsed.arcade) ? parsed.arcade.filter(Number.isFinite).map(n => Math.floor(n)).slice(0, 10) : [],
+        });
+      }
+    } catch {
+      // Ignore storage failures; game still works without persistence.
+    }
+  }, []);
+
   function resetToTitle() {
+    maybeFinalizeRunScore();
     setBoard(emptyBoard());
     setPieces([]);
     setScore(0);
@@ -350,6 +411,9 @@ export default function FourDirectionTetris() {
     setPendingCursedPiece(false);
     setPendingBombPiece(false);
     setNextSideIndex(0);
+    setRunHighScoreAchieved(false);
+    setHighScoreMessage("");
+    runScoreSavedRef.current = false;
     setHasExtraLife(false);
     setScreenFlash(false);
     setGameOver(false);
@@ -785,6 +849,7 @@ export default function FourDirectionTetris() {
 
     setFailReason(reason);
     setGameOver(true);
+    maybeFinalizeRunScore();
     return false;
   }
 
@@ -909,6 +974,7 @@ export default function FourDirectionTetris() {
   }
 
   function startGame() {
+    maybeFinalizeRunScore();
     const freshBoard = emptyBoard();
     setBoard(freshBoard);
     setPieces([]);
@@ -926,6 +992,9 @@ export default function FourDirectionTetris() {
     setPendingCursedPiece(false);
     setPendingBombPiece(false);
     setNextSideIndex(0);
+    setRunHighScoreAchieved(false);
+    setHighScoreMessage("");
+    runScoreSavedRef.current = false;
     setHasExtraLife(false);
     setScreenFlash(false);
     setGameOver(false);
@@ -952,6 +1021,11 @@ export default function FourDirectionTetris() {
 
     setScore(prev => {
       const next = prev + gained;
+      if (!runHighScoreAchieved && leaderboardMode(gameMode) && next > currentModeTopScore(gameMode)) {
+        setRunHighScoreAchieved(true);
+        setHighScoreMessage("HIGH SCORE");
+        setTimeout(() => setHighScoreMessage(""), 1100);
+      }
       const oldLevel = levelForScore(prev);
       const newLevel = levelForScore(next);
       if (newLevel > oldLevel && newLevel > level) {
@@ -1341,6 +1415,10 @@ export default function FourDirectionTetris() {
   }, [screen, gameOver, paused, animating, pieces.length, pendingDualSpawn, pendingCursedPiece, gameMode, board]);
 
   useEffect(() => {
+    if (gameOver) maybeFinalizeRunScore();
+  }, [gameOver]);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1365,7 +1443,7 @@ export default function FourDirectionTetris() {
       ctx.stroke();
     }
 
-    ctx.strokeStyle = "rgba(248,113,113,0.9)";
+    ctx.strokeStyle = runHighScoreAchieved ? "rgba(34,197,94,0.95)" : "rgba(248,113,113,0.9)";
     ctx.lineWidth = 4;
     ctx.strokeRect(SAFE_MIN * CELL, SAFE_MIN * CELL, (SAFE_MAX - SAFE_MIN + 1) * CELL, (SAFE_MAX - SAFE_MIN + 1) * CELL);
     ctx.lineWidth = 1;
@@ -1502,6 +1580,14 @@ export default function FourDirectionTetris() {
       ctx.textAlign = "left";
     }
 
+    if (highScoreMessage) {
+      ctx.fillStyle = "rgba(34,197,94,0.98)";
+      ctx.font = "bold 44px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(highScoreMessage, canvas.width / 2, 98);
+      ctx.textAlign = "left";
+    }
+
     if (gameOver) {
       ctx.fillStyle = "rgba(0,0,0,0.68)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1512,7 +1598,7 @@ export default function FourDirectionTetris() {
       ctx.font = "16px sans-serif";
       ctx.fillText(failReason || "Game ended", canvas.width / 2, canvas.height / 2 + 34);
     }
-  }, [board, pieces, gameOver, failReason, animating, flashKeys, screen, countdown, powerUps, multiplierPopup, destroyedPiece, missileEffect]);
+  }, [board, pieces, gameOver, failReason, animating, flashKeys, screen, countdown, powerUps, multiplierPopup, destroyedPiece, missileEffect, runHighScoreAchieved, highScoreMessage]);
 
   const padLabels = getPadLabels();
 
@@ -1524,6 +1610,7 @@ export default function FourDirectionTetris() {
             <div style={{ textAlign:'left', background:'rgba(15,23,42,0.82)', border:'1px solid rgba(148,163,184,0.22)', borderRadius:'14px', padding:'10px 12px 28px', minWidth:'126px', backdropFilter:'blur(10px)', position:'relative' }}>
               <div style={{ fontSize:'11px', letterSpacing:'0.14em', textTransform:'uppercase', color:'#94a3b8' }}>Score</div>
               <div style={{ fontSize:'28px', fontWeight:800, lineHeight:1 }}>{Math.floor(score)}</div>
+              <div style={{ fontSize:'11px', color:'#94a3b8', marginTop:'2px' }}>High {Math.floor(currentModeTopScore())}</div>
               <div style={{ fontSize:'12px', color:'#cbd5e1', marginTop:'4px' }}>Level {level}</div>
               <div style={{ position:'absolute', left:'12px', right:'12px', bottom:'8px', fontSize:'12px', color:'#6ee7b7', lineHeight:1.2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', pointerEvents:'none' }}>{scoreFlash}</div>
               <div style={{ height:'1px', background:'rgba(148,163,184,0.16)', margin:'8px 0' }} />
@@ -1624,6 +1711,7 @@ export default function FourDirectionTetris() {
                 />
                 Dev mode (2=x2, 3=x3, 4=missile, 5=dual, 6=life, 7=slow-mo, 8=cursed, 9=bomb, 0=reverse)
               </label>
+              <button onClick={() => setShowHighScores(true)} style={{ padding:'10px 18px', borderRadius:'12px', background:'#334155', color:'white', border:'none', cursor:'pointer', fontWeight:700 }}>High Scores</button>
               <button onClick={startGame} style={{ padding:'12px 32px', borderRadius:'12px', background:'#2563eb', color:'white', border:'none', cursor:'pointer', fontWeight:'bold' }}>Play</button>
             </div>
           )}
@@ -1724,7 +1812,28 @@ export default function FourDirectionTetris() {
             <button onClick={() => setPaused(p => !p)} style={{ padding:'10px 18px', borderRadius:'12px', background:'#475569', color:'white', border:'none', cursor:'pointer' }}>
               {paused ? "Resume" : "Pause"}
             </button>
+            <button onClick={() => setShowHighScores(true)} style={{ padding:'10px 18px', borderRadius:'12px', background:'#1e293b', color:'white', border:'1px solid rgba(148,163,184,0.35)', cursor:'pointer' }}>High Scores</button>
           </div>
+
+          {showHighScores && (
+            <div style={{ position:'absolute', inset:'20px', zIndex:40, background:'rgba(2,6,23,0.96)', border:'1px solid rgba(148,163,184,0.3)', borderRadius:'18px', padding:'16px', display:'grid', gap:'12px' }}>
+              <button onClick={() => setShowHighScores(false)} style={{ justifySelf:'end', width:'32px', height:'32px', borderRadius:'8px', border:'1px solid rgba(148,163,184,0.3)', background:'#1e293b', color:'white', cursor:'pointer', fontWeight:800 }}>X</button>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'14px' }}>
+                <div style={{ background:'rgba(15,23,42,0.7)', border:'1px solid rgba(148,163,184,0.22)', borderRadius:'12px', padding:'10px' }}>
+                  <div style={{ fontWeight:800, marginBottom:'8px' }}>Classic Top 10</div>
+                  {(highScores.classic || []).length ? (highScores.classic || []).map((v, i) => (
+                    <div key={`classic-${i}`} style={{ fontSize:'13px', color:'#cbd5e1' }}>{i + 1}. {Math.floor(v)}</div>
+                  )) : <div style={{ fontSize:'13px', color:'#64748b' }}>No scores yet</div>}
+                </div>
+                <div style={{ background:'rgba(15,23,42,0.7)', border:'1px solid rgba(148,163,184,0.22)', borderRadius:'12px', padding:'10px' }}>
+                  <div style={{ fontWeight:800, marginBottom:'8px' }}>Arcade Top 10</div>
+                  {(highScores.arcade || []).length ? (highScores.arcade || []).map((v, i) => (
+                    <div key={`arcade-${i}`} style={{ fontSize:'13px', color:'#cbd5e1' }}>{i + 1}. {Math.floor(v)}</div>
+                  )) : <div style={{ fontSize:'13px', color:'#64748b' }}>No scores yet</div>}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
