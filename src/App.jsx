@@ -1483,6 +1483,9 @@ export default function FourDirectionTetris() {
   useEffect(() => {
     const onKey = e => {
       const key = e.key.toLowerCase();
+      if ([" ", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(key)) {
+        e.preventDefault();
+      }
 
       if (devMode && screen === "playing" && (gameMode === "arcade" || gameMode === "cursed")) {
         if (key === "2") spawnDebugPowerUp("multiplier2");
@@ -1784,7 +1787,7 @@ export default function FourDirectionTetris() {
   const padLabels = getPadLabels();
 
   return (
-    <div style={{ minHeight:'100vh', color:'white', display:'flex', alignItems:'center', justifyContent:'center', padding:'8px', width:'100%', maxWidth:'100vw', overflowX:'hidden', background:'radial-gradient(circle at top, #1e293b 0%, #0f172a 42%, #020617 100%)', fontFamily:'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif', boxSizing:'border-box' }}>
+    <div style={{ minHeight:'100vh', height:'100vh', color:'white', display:'flex', alignItems:'center', justifyContent:'center', padding:'8px', width:'100%', maxWidth:'100vw', overflow:'hidden', overscrollBehavior:'none', background:'radial-gradient(circle at top, #1e293b 0%, #0f172a 42%, #020617 100%)', fontFamily:'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif', boxSizing:'border-box' }}>
       <div style={{ margin:'0 auto', width:'100%', maxWidth:'920px', background:'linear-gradient(180deg, rgba(15,23,42,0.96), rgba(2,6,23,0.98))', border:'1px solid rgba(148,163,184,0.25)', borderRadius:'24px', padding:'12px', boxShadow:'0 30px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06)', boxSizing:'border-box' }}>
         <div style={{ display:'grid', gap:'18px', position:'relative' }}>
           <div style={{ display:'grid', gridTemplateColumns:'minmax(120px, 160px) minmax(0, 1fr)', alignItems:'center', gap:'12px' }}>
