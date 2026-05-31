@@ -28,12 +28,12 @@ const SHAPES = [
   [[1, 1, 0], [0, 1, 1]],
   [[0, 1, 1], [1, 1, 0]],
 ];
-const CURSED_SHAPES = [
-  [[1, 1, 0], [0, 1, 0], [0, 1, 0], [0, 1, 0], [0, 1, 1]],
-  [[1, 1], [1, 1], [1, 1], [1, 1]],
-  [[0, 1, 0], [1, 1, 1], [0, 1, 0], [1, 1, 1]],
-  [[1, 0, 1], [1, 1, 1], [0, 1, 0], [1, 1, 1]],
-  [[1, 1, 1], [1, 0, 1], [1, 1, 1], [0, 1, 0]],
+const CURSED_PIECES = [
+  { shape: [[0, 1, 1], [0, 1, 0], [0, 1, 0], [0, 1, 0], [1, 1, 0]], colorMode: "alternate", colors: ["#7c3aed", "#ca8a04"] },
+  { shape: [[1, 1], [1, 1], [1, 1]], colorMode: "solid", color: "#2563eb" },
+  { shape: [[0, 1, 0], [1, 1, 1], [1, 1, 1], [0, 1, 0]], colorMode: "solid", color: "#16a34a" },
+  { shape: [[1, 1, 0], [0, 1, 1], [0, 1, 1], [1, 1, 0]], colorMode: "half", topColor: "#ea580c", bottomColor: "#2563eb" },
+  { shape: [[1, 1, 1, 1, 1, 1, 1, 1]], colorMode: "solid", color: "#e11d48" },
 ];
 
 const COLORS = ["#e11d48", "#2563eb", "#16a34a", "#ca8a04", "#7c3aed", "#ea580c", "#0891b2"];
@@ -73,6 +73,42 @@ function randomPiece(forcedSide = null, shapePool = SHAPES) {
   if (side === "right") x = SAFE_MAX - shape[0].length + 1;
 
   return { id: crypto.randomUUID(), shape, color: COLORS[index % COLORS.length], x, y, side };
+}
+
+function cursedCellColor(spec, shape, r, c) {
+  if (spec.colorMode === "solid") return spec.color;
+  if (spec.colorMode === "alternate") {
+    let nth = 0;
+    for (let yy = 0; yy <= r; yy++) {
+      for (let xx = 0; xx < shape[yy].length; xx++) {
+        if (!shape[yy][xx]) continue;
+        if (yy === r && xx === c) return spec.colors[nth % spec.colors.length];
+        nth++;
+      }
+    }
+    return spec.colors[0];
+  }
+  if (spec.colorMode === "half") {
+    return r < Math.ceil(shape.length / 2) ? spec.topColor : spec.bottomColor;
+  }
+  return "#7c3aed";
+}
+
+function randomCursedPiece(forcedSide = null) {
+  const index = Math.floor(Math.random() * CURSED_PIECES.length);
+  const spec = CURSED_PIECES[index];
+  const side = forcedSide || randomSide();
+  const shape = spec.shape;
+  let x = CENTRE - Math.floor(shape[0].length / 2);
+  let y = CENTRE - Math.floor(shape.length / 2);
+
+  if (side === "top") y = SAFE_MIN;
+  if (side === "bottom") y = SAFE_MAX - shape.length + 1;
+  if (side === "left") x = SAFE_MIN;
+  if (side === "right") x = SAFE_MAX - shape[0].length + 1;
+
+  const cellColors = shape.map((row, r) => row.map((cell, c) => (cell ? cursedCellColor(spec, shape, r, c) : null)));
+  return { id: crypto.randomUUID(), shape, x, y, side, color: "#7c3aed", cellColors };
 }
 
 function randomSide() {
@@ -130,6 +166,24 @@ function merge(board, piece) {
   pieceCells(piece).forEach(({ x, y }) => {
     if (!outsideBarrier(x, y)) next[y][x] = piece.color;
   });
+  return next;
+}
+
+function pieceCellColor(piece, r, c) {
+  return piece.cellColors?.[r]?.[c] || piece.color;
+}
+
+function mergeWithCellColors(board, piece) {
+  const next = board.map(row => [...row]);
+  for (let r = 0; r < piece.shape.length; r++) {
+    for (let c = 0; c < piece.shape[r].length; c++) {
+      if (!piece.shape[r][c]) continue;
+      const x = piece.x + c;
+      const y = piece.y + r;
+      if (outsideBarrier(x, y)) continue;
+      next[y][x] = pieceCellColor(piece, r, c);
+    }
+  }
   return next;
 }
 
@@ -243,7 +297,7 @@ function settleOneTick(startBoard) {
 
 function BlockTitle() {
   const letters = {
-    Q: ["111", "101", "101", "101", "111"],
+    Q: ["111", "101", "101", "111", "001"],
     U: ["101", "101", "101", "101", "111"],
     A: ["111", "101", "111", "101", "101"],
     D: ["110", "101", "101", "101", "110"],
@@ -337,8 +391,7 @@ export default function FourDirectionTetris() {
     if (points >= 10500) return 5;
     if (points >= 6500) return 4;
     if (points >= 3500) return 3;
-    if (points >= 1500) return 2;
-    if (points >= 500) return 1.5;
+    if (points >= 500) return 2;
     return 1;
   }
 
@@ -888,16 +941,16 @@ export default function FourDirectionTetris() {
     }
     if (pendingCursedPiece) {
       setPendingCursedPiece(false);
-      return randomPiece(side, CURSED_SHAPES);
+      return randomCursedPiece(side);
     }
     if (shouldUseCursedPool()) {
-      return randomPiece(side, CURSED_SHAPES);
+      return randomCursedPiece(side);
     }
     return randomPiece(side);
   }
 
   function triggerBombPieceLock(startBoard, bombPiece) {
-    const merged = merge(startBoard, bombPiece);
+    const merged = mergeWithCellColors(startBoard, bombPiece);
     const bombKeys = new Set(
       pieceCells(bombPiece)
         .filter(({ x, y }) => !outsideBarrier(x, y))
@@ -959,9 +1012,9 @@ export default function FourDirectionTetris() {
     const step = reverseFallOrder ? -1 : 1;
     const useCursed = pendingCursedPiece || shouldUseCursedPool();
     for (let attempt = 0; attempt < 80; attempt++) {
-      const first = useCursed ? randomPiece(scheduledSide, CURSED_SHAPES) : randomPiece(scheduledSide);
+      const first = useCursed ? randomCursedPiece(scheduledSide) : randomPiece(scheduledSide);
       const second = shouldUseCursedPool()
-        ? randomPiece(oppositeSide(first.side), CURSED_SHAPES)
+        ? randomCursedPiece(oppositeSide(first.side))
         : randomPiece(oppositeSide(first.side));
       const overlapEachOther = pieceCells(first).some(a =>
         pieceCells(second).some(b => a.x === b.x && a.y === b.y)
@@ -1127,7 +1180,7 @@ export default function FourDirectionTetris() {
           triggerBombPieceLock(currentBoard, activePiece);
           return;
         }
-        currentBoard = merge(currentBoard, activePiece);
+        currentBoard = mergeWithCellColors(currentBoard, activePiece);
         setBoard(currentBoard);
         addScore(10, "land");
         continue;
@@ -1237,7 +1290,7 @@ export default function FourDirectionTetris() {
       }
       if (crossedPiece) break;
       if (removedByPickup) continue;
-      currentBoard = merge(currentBoard, p);
+      currentBoard = mergeWithCellColors(currentBoard, p);
       setBoard(currentBoard);
       addScore(10, "land");
     }
@@ -1546,12 +1599,18 @@ export default function FourDirectionTetris() {
     });
     if (destroyedPiece) {
       const flashOn = Math.floor(Date.now() / 80) % 2 === 0;
-      destroyedPiece.shape.forEach((row, r) => row.forEach((cell, c) => cell && drawCell(destroyedPiece.x + c, destroyedPiece.y + r, flashOn ? "#ffffff" : destroyedPiece.color)));
+      destroyedPiece.shape.forEach((row, r) => row.forEach((cell, c) => {
+        if (!cell) return;
+        drawCell(destroyedPiece.x + c, destroyedPiece.y + r, flashOn ? "#ffffff" : pieceCellColor(destroyedPiece, r, c));
+      }));
     } else if (!animating && pieces.length) {
       pieces.forEach(activePiece => {
         const bombFlashOn = activePiece.isBomb && Math.floor(Date.now() / 90) % 2 === 0;
-        const renderColor = bombFlashOn ? "#ffffff" : activePiece.color;
-        activePiece.shape.forEach((row, r) => row.forEach((cell, c) => cell && drawCell(activePiece.x + c, activePiece.y + r, renderColor)));
+        activePiece.shape.forEach((row, r) => row.forEach((cell, c) => {
+          if (!cell) return;
+          const renderColor = bombFlashOn ? "#ffffff" : pieceCellColor(activePiece, r, c);
+          drawCell(activePiece.x + c, activePiece.y + r, renderColor);
+        }));
       });
     }
 
