@@ -30,7 +30,7 @@ const SHAPES = [
 ];
 const CURSED_PIECES = [
   { shape: [[0, 1, 1], [0, 1, 0], [0, 1, 0], [0, 1, 0], [1, 1, 0]], colorMode: "alternate", colors: ["#7c3aed", "#ca8a04"] },
-  { shape: [[1, 1], [1, 1], [1, 1]], colorMode: "solid", color: "#2563eb" },
+  { shape: [[1, 1], [1, 1], [1, 1], [1, 1]], colorMode: "solid", color: "#2563eb" },
   { shape: [[0, 1, 0], [1, 1, 1], [1, 1, 1], [0, 1, 0]], colorMode: "solid", color: "#16a34a" },
   { shape: [[1, 1, 0], [0, 1, 1], [0, 1, 1], [1, 1, 0]], colorMode: "half", topColor: "#ea580c", bottomColor: "#2563eb" },
   { shape: [[1, 1, 1, 1, 1, 1, 1, 1]], colorMode: "solid", color: "#e11d48" },
@@ -388,6 +388,17 @@ export default function FourDirectionTetris() {
   const holdIntervalRef = useRef(null);
   const runScoreSavedRef = useRef(false);
   const stepRef = useRef(() => {});
+  const pickupSfxRef = useRef(null);
+  const cursedPickupSfxRef = useRef(null);
+  const clearSfxRef = useRef(null);
+  const placePieceSfxRef = useRef(null);
+  const levelUpSfxRef = useRef(null);
+  const explosionSfxRef = useRef(null);
+  const missileFireSfxRef = useRef(null);
+  const gameOverSfxRef = useRef(null);
+  const extraLifeSfxRef = useRef(null);
+  const highScoreSfxRef = useRef(null);
+  const lastClearSfxAtRef = useRef(0);
 
   function levelForScore(points) {
     if (points >= 36500) return 9;
@@ -455,6 +466,47 @@ export default function FourDirectionTetris() {
       // Ignore storage failures; game still works without persistence.
     }
   }, []);
+
+  useEffect(() => {
+    pickupSfxRef.current = new Audio("/audio/pickuppowerup.wav");
+    pickupSfxRef.current.volume = 0.65;
+    cursedPickupSfxRef.current = new Audio("/audio/pickupcursedpowerup.wav");
+    cursedPickupSfxRef.current.volume = 0.72;
+    clearSfxRef.current = new Audio("/audio/cleara4by4.wav");
+    clearSfxRef.current.volume = 0.78;
+    placePieceSfxRef.current = new Audio("/audio/placeapiece.wav");
+    placePieceSfxRef.current.volume = 0.68;
+    levelUpSfxRef.current = new Audio("/audio/level up.wav");
+    levelUpSfxRef.current.volume = 0.78;
+    explosionSfxRef.current = new Audio("/audio/explosion.wav");
+    explosionSfxRef.current.volume = 0.82;
+    missileFireSfxRef.current = new Audio("/audio/missilefiring.wav");
+    missileFireSfxRef.current.volume = 0.8;
+    gameOverSfxRef.current = new Audio("/audio/game over.wav");
+    gameOverSfxRef.current.volume = 0.82;
+    extraLifeSfxRef.current = new Audio("/audio/extra life.wav");
+    extraLifeSfxRef.current.volume = 0.82;
+    highScoreSfxRef.current = new Audio("/audio/high score.wav");
+    highScoreSfxRef.current.volume = 0.86;
+  }, []);
+
+  function playSfx(audioRef) {
+    const audio = audioRef.current;
+    if (!audio) return;
+    try {
+      audio.currentTime = 0;
+      audio.play().catch(() => {});
+    } catch {
+      // Ignore audio playback errors.
+    }
+  }
+
+  function playClearSfxOnce() {
+    const now = Date.now();
+    if (now - lastClearSfxAtRef.current < 220) return;
+    lastClearSfxAtRef.current = now;
+    playSfx(clearSfxRef);
+  }
 
   function resetToTitle() {
     maybeFinalizeRunScore();
@@ -719,6 +771,8 @@ export default function FourDirectionTetris() {
     const reverseCollected = collected.some(p => p.type === 'reverse');
     const cursedCollected = collected.some(p => p.type === 'cursed');
     const bombCollected = collected.some(p => p.type === 'bomb');
+    if (cursedCollected) playSfx(cursedPickupSfxRef);
+    else playSfx(pickupSfxRef);
     const multiplierPickups = collected.filter(p => p.type === 'multiplier');
     const strongest = multiplierPickups.length
       ? Math.max(...multiplierPickups.map(p => p.multiplier))
@@ -846,6 +900,7 @@ export default function FourDirectionTetris() {
         ? { x: missileSource.x, y: missileSource.y }
         : { x: CENTRE, y: CENTRE }
     });
+    playSfx(missileFireSfxRef);
 
     let frame = 0;
     const travelFrames = 8;
@@ -879,6 +934,7 @@ export default function FourDirectionTetris() {
           setFlashKeys(new Set());
           setMissileEffect(null);
           setBoard(blasted);
+          playSfx(explosionSfxRef);
           addScore(clearKeys.size * 10, "blast");
           if (skipSettle) return;
           settleAnimated(blasted);
@@ -890,6 +946,7 @@ export default function FourDirectionTetris() {
   function handleDeath(reason = "Barrier breached") {
     if (hasExtraLife) {
       setHasExtraLife(false);
+      playSfx(extraLifeSfxRef);
       setScreenFlash(true);
       setAnimating(true);
       setPendingDualSpawn(false);
@@ -918,6 +975,7 @@ export default function FourDirectionTetris() {
 
     setFailReason(reason);
     setGameOver(true);
+    playSfx(gameOverSfxRef);
     maybeFinalizeRunScore();
     return false;
   }
@@ -966,6 +1024,7 @@ export default function FourDirectionTetris() {
     setBoard(merged);
     setPieces([]);
     setAnimating(true);
+    playSfx(placePieceSfxRef);
     addScore(10, "land");
 
     let flashes = 0;
@@ -991,6 +1050,7 @@ export default function FourDirectionTetris() {
 
         const blasted = applyClear(merged, clearKeys);
         setBoard(blasted);
+        playSfx(explosionSfxRef);
         addScore(clearKeys.size * 12, "bomb");
         settleAnimated(blasted);
       }, BOMB_FLASH_INTERVAL_MS);
@@ -1098,6 +1158,7 @@ export default function FourDirectionTetris() {
       const hasPriorRunThisSession = modeKey ? (sessionRunCounts[modeKey] || 0) > 0 : false;
       if (!runHighScoreAchieved && modeKey && hasPriorRunThisSession && next > currentModeTopScore(gameMode)) {
         setRunHighScoreAchieved(true);
+        playSfx(highScoreSfxRef);
         setHighScoreMessage("HIGH SCORE");
         setTimeout(() => setHighScoreMessage(""), 1100);
       }
@@ -1105,6 +1166,7 @@ export default function FourDirectionTetris() {
       const newLevel = levelForScore(next);
       if (newLevel > oldLevel && newLevel > level) {
         setLevel(newLevel);
+        playSfx(levelUpSfxRef);
         setLevelMessage(`Level ${newLevel}!`);
         setTimeout(() => setLevelMessage(""), 900);
       }
@@ -1147,7 +1209,10 @@ export default function FourDirectionTetris() {
     setBoard(merged);
 
     const clearScore = result.cleared * 100;
-    if (clearScore) addScore(clearScore, "clear");
+    if (clearScore) {
+      playClearSfxOnce();
+      addScore(clearScore, "clear");
+    }
 
     if (result.clearKeys.size) {
       setAnimating(true);
@@ -1188,6 +1253,7 @@ export default function FourDirectionTetris() {
         }
         currentBoard = mergeWithCellColors(currentBoard, activePiece);
         setBoard(currentBoard);
+        playSfx(placePieceSfxRef);
         addScore(10, "land");
         continue;
       }
@@ -1306,6 +1372,7 @@ export default function FourDirectionTetris() {
       if (removedByPickup) continue;
       currentBoard = mergeWithCellColors(currentBoard, p);
       setBoard(currentBoard);
+      playSfx(placePieceSfxRef);
       addScore(10, "land");
     }
 
@@ -1823,7 +1890,7 @@ export default function FourDirectionTetris() {
                   checked={devMode}
                   onChange={e => setDevMode(e.target.checked)}
                 />
-                Dev mode (2=x2, 3=x3, 4=missile, 5=dual, 6=life, 7=slow-mo, 8=cursed, 9=bomb, 0=reverse)
+                Dev mode
               </label>
               <button onClick={() => setShowHighScores(true)} style={{ padding:'10px 18px', borderRadius:'12px', background:'#334155', color:'white', border:'none', cursor:'pointer', fontWeight:700 }}>High Scores</button>
               <button onClick={startGame} style={{ padding:'12px 32px', borderRadius:'12px', background:'#2563eb', color:'white', border:'none', cursor:'pointer', fontWeight:'bold' }}>Play</button>
