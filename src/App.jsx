@@ -18,6 +18,7 @@ const BOMB_FLASH_INTERVAL_MS = 65;
 const POWERUP_TURNS = 6;
 const MAX_SCORE_MULTIPLIER = 6;
 const HIGH_SCORES_KEY = "quadestris.highScores.v1";
+const SETTINGS_KEY = "quadestris.settings.v1";
 
 const SHAPES = [
   [[1, 1, 1, 1]],
@@ -355,6 +356,10 @@ export default function FourDirectionTetris() {
   const [randomSpawnOrder, setRandomSpawnOrder] = useState(false);
   const [nextSideIndex, setNextSideIndex] = useState(0);
   const [devMode, setDevMode] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [sfxMuted, setSfxMuted] = useState(false);
+  const [sfxVolume, setSfxVolume] = useState(0.8);
+  const [musicVolume, setMusicVolume] = useState(0.5);
   const [screen, setScreen] = useState("title");
   const [countdown, setCountdown] = useState(null);
   const [gameOver, setGameOver] = useState(false);
@@ -469,32 +474,58 @@ export default function FourDirectionTetris() {
   }, []);
 
   useEffect(() => {
-    pickupSfxRef.current = new Audio("/audio/pickuppowerup.wav");
-    pickupSfxRef.current.volume = 0.65;
-    cursedPickupSfxRef.current = new Audio("/audio/pickupcursedpowerup.wav");
-    cursedPickupSfxRef.current.volume = 0.72;
-    clearSfxRef.current = new Audio("/audio/cleara4by4.wav");
-    clearSfxRef.current.volume = 0.78;
-    placePieceSfxRef.current = new Audio("/audio/placeapiece.wav");
-    placePieceSfxRef.current.volume = 0.68;
-    levelUpSfxRef.current = new Audio("/audio/level up.wav");
-    levelUpSfxRef.current.volume = 0.78;
-    explosionSfxRef.current = new Audio("/audio/explosion.wav");
-    explosionSfxRef.current.volume = 0.82;
-    missileFireSfxRef.current = new Audio("/audio/missilefiring.wav");
-    missileFireSfxRef.current.volume = 0.8;
-    gameOverSfxRef.current = new Audio("/audio/game over.wav");
-    gameOverSfxRef.current.volume = 0.82;
-    extraLifeSfxRef.current = new Audio("/audio/extra life.wav");
-    extraLifeSfxRef.current.volume = 0.82;
-    highScoreSfxRef.current = new Audio("/audio/high score.wav");
-    highScoreSfxRef.current.volume = 0.86;
+    try {
+      const raw = localStorage.getItem(SETTINGS_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (typeof parsed?.devMode === "boolean") setDevMode(parsed.devMode);
+      if (typeof parsed?.randomSpawnOrder === "boolean") setRandomSpawnOrder(parsed.randomSpawnOrder);
+      if (typeof parsed?.sfxMuted === "boolean") setSfxMuted(parsed.sfxMuted);
+      if (Number.isFinite(parsed?.sfxVolume)) setSfxVolume(Math.max(0, Math.min(1, parsed.sfxVolume)));
+      if (Number.isFinite(parsed?.musicVolume)) setMusicVolume(Math.max(0, Math.min(1, parsed.musicVolume)));
+    } catch {
+      // Ignore invalid settings data.
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        SETTINGS_KEY,
+        JSON.stringify({ devMode, randomSpawnOrder, sfxMuted, sfxVolume, musicVolume })
+      );
+    } catch {
+      // Ignore storage failures.
+    }
+  }, [devMode, randomSpawnOrder, sfxMuted, sfxVolume, musicVolume]);
+
+  useEffect(() => {
+    const initSfx = (ref, src, baseVolume) => {
+      const audio = new Audio(src);
+      audio.volume = baseVolume;
+      audio._baseVolume = baseVolume;
+      ref.current = audio;
+    };
+
+    initSfx(pickupSfxRef, "/audio/pickuppowerup.wav", 0.65);
+    initSfx(cursedPickupSfxRef, "/audio/pickupcursedpowerup.wav", 0.72);
+    initSfx(clearSfxRef, "/audio/cleara4by4.wav", 0.78);
+    initSfx(placePieceSfxRef, "/audio/placeapiece.wav", 0.68);
+    initSfx(levelUpSfxRef, "/audio/level up.wav", 0.78);
+    initSfx(explosionSfxRef, "/audio/explosion.wav", 0.82);
+    initSfx(missileFireSfxRef, "/audio/missilefiring.wav", 0.8);
+    initSfx(gameOverSfxRef, "/audio/gameover.wav", 0.82);
+    initSfx(extraLifeSfxRef, "/audio/extra life.wav", 0.82);
+    initSfx(highScoreSfxRef, "/audio/high score.wav", 0.86);
   }, []);
 
   function playSfx(audioRef) {
+    if (sfxMuted || sfxVolume <= 0) return;
     const audio = audioRef.current;
     if (!audio) return;
     try {
+      const base = Number.isFinite(audio._baseVolume) ? audio._baseVolume : 1;
+      audio.volume = Math.max(0, Math.min(1, base * sfxVolume));
       audio.currentTime = 0;
       audio.play().catch(() => {});
     } catch {
@@ -1604,6 +1635,25 @@ export default function FourDirectionTetris() {
     }
   }
 
+  const pixelButtonAssets = {
+    title: "/ui/button-title.png",
+    restart: "/ui/button-restart.png",
+    pause: "/ui/button-pause.png",
+    resume: "/ui/button-resume.png",
+    highscores: "/ui/button-highscores.png",
+  };
+
+  function pixelButtonStyle(asset, fallback) {
+    return {
+      ...fallback,
+      backgroundImage: `url('${asset}')`,
+      backgroundSize: "100% 100%",
+      backgroundRepeat: "no-repeat",
+      backgroundPosition: "center",
+      imageRendering: "pixelated",
+    };
+  }
+
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
@@ -1629,7 +1679,13 @@ export default function FourDirectionTetris() {
       ctx.stroke();
     }
 
-    ctx.strokeStyle = runHighScoreAchieved ? "rgba(34,197,94,0.95)" : "rgba(248,113,113,0.9)";
+    const purplePowerActive =
+      reverseUntil > Date.now() ||
+      pendingDualSpawn ||
+      pendingCursedPiece;
+    ctx.strokeStyle = purplePowerActive
+      ? "rgba(168,85,247,0.95)"
+      : (runHighScoreAchieved ? "rgba(34,197,94,0.95)" : "rgba(248,113,113,0.9)");
     ctx.lineWidth = 4;
     ctx.strokeRect(SAFE_MIN * CELL, SAFE_MIN * CELL, (SAFE_MAX - SAFE_MIN + 1) * CELL, (SAFE_MAX - SAFE_MIN + 1) * CELL);
     ctx.lineWidth = 1;
@@ -1642,18 +1698,16 @@ export default function FourDirectionTetris() {
     ctx.fillText(`SCORE ${Math.floor(score)}`, SAFE_MIN * CELL + 6, hudY);
     ctx.fillText(`HIGH ${Math.floor(currentModeTopScore())}`, SAFE_MIN * CELL + 116, hudY);
     ctx.fillText(`LEVEL ${level}`, SAFE_MIN * CELL + 214, hudY);
-    ctx.fillText(`MODE ${String(gameMode).toUpperCase()}`, SAFE_MIN * CELL + 286, hudY);
     ctx.fillStyle = hasExtraLife ? "#ff6680" : "rgba(100,116,139,0.95)";
-    ctx.fillText(`LIFE ${hasExtraLife ? "YES" : "NO"}`, SAFE_MIN * CELL + 405, hudY);
+    ctx.fillText(`LIFE ${hasExtraLife ? "YES" : "NO"}`, SAFE_MIN * CELL + 372, hudY);
     ctx.fillStyle = "#fbbf24";
-    ctx.fillText(`MULTI x${scoreMultiplier}`, SAFE_MIN * CELL + 472, hudY);
+    ctx.fillText(`MULTI x${scoreMultiplier}`, SAFE_MIN * CELL + 442, hudY);
 
     if (scoreFlash) {
       ctx.fillStyle = "#6ee7b7";
       ctx.font = "bold 12px sans-serif";
-      ctx.textAlign = "right";
-      ctx.fillText(scoreFlash, SAFE_MAX * CELL - 6, SAFE_MIN * CELL - 9);
       ctx.textAlign = "left";
+      ctx.fillText(scoreFlash, SAFE_MIN * CELL + 286, hudY);
     }
 
     const drawCell = (x, y, color) => {
@@ -1812,7 +1866,7 @@ export default function FourDirectionTetris() {
       ctx.font = "16px sans-serif";
       ctx.fillText(failReason || "Game ended", canvas.width / 2, canvas.height / 2 + 34);
     }
-  }, [board, pieces, gameOver, failReason, animating, flashKeys, screen, countdown, powerUps, multiplierPopup, destroyedPiece, missileEffect, runHighScoreAchieved, highScoreMessage, score, level, gameMode, hasExtraLife, scoreMultiplier, scoreFlash, highScores]);
+  }, [board, pieces, gameOver, failReason, animating, flashKeys, screen, countdown, powerUps, multiplierPopup, destroyedPiece, missileEffect, runHighScoreAchieved, highScoreMessage, score, level, gameMode, hasExtraLife, scoreMultiplier, scoreFlash, highScores, reverseUntil, pendingDualSpawn, pendingCursedPiece]);
 
   const padLabels = getPadLabels();
 
@@ -1822,7 +1876,6 @@ export default function FourDirectionTetris() {
         <div style={{ display:'grid', gap:'14px', position:'relative' }}>
           <div style={{ textAlign:'center', minHeight:'52px', paddingTop:'0', display:'grid', alignContent:'center', justifyItems:'center' }}>
             <BlockTitle />
-            <p style={{ color:'#cbd5e1', fontSize:'14px', margin:'6px 0 0' }}>Build from the centre. Clear 4×4 blocks. Do not breach the red perimeter.</p>
           </div>
 
           {screen === "title" && (
@@ -1890,22 +1943,7 @@ export default function FourDirectionTetris() {
                   {[1,2,3,4,5,6,7,8,9].map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
               </div>
-              <label style={{ display:'flex', alignItems:'center', gap:'8px', fontSize:'13px', color:'#cbd5e1' }}>
-                <input
-                  type="checkbox"
-                  checked={randomSpawnOrder}
-                  onChange={e => setRandomSpawnOrder(e.target.checked)}
-                />
-                Random spawn order
-              </label>
-              <label style={{ display:'flex', alignItems:'center', gap:'8px', fontSize:'13px', color:'#cbd5e1' }}>
-                <input
-                  type="checkbox"
-                  checked={devMode}
-                  onChange={e => setDevMode(e.target.checked)}
-                />
-                Dev mode
-              </label>
+              <button onClick={() => setShowSettings(true)} style={{ padding:'10px 18px', borderRadius:'12px', background:'#1e293b', color:'white', border:'1px solid rgba(148,163,184,0.35)', cursor:'pointer', fontWeight:700 }}>Settings</button>
               <button onClick={() => setShowHighScores(true)} style={{ padding:'10px 18px', borderRadius:'12px', background:'#334155', color:'white', border:'none', cursor:'pointer', fontWeight:700 }}>High Scores</button>
               <button onClick={startGame} style={{ padding:'12px 32px', borderRadius:'12px', background:'#2563eb', color:'white', border:'none', cursor:'pointer', fontWeight:'bold' }}>Play</button>
             </div>
@@ -1997,6 +2035,10 @@ export default function FourDirectionTetris() {
             <div />
           </div>
 
+          <div style={{ textAlign:'center', fontSize:'13px', color:'#94a3b8', textTransform:'lowercase', letterSpacing:'0.04em' }}>
+            {gameMode}
+          </div>
+
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:'8px', fontSize:'13px', color:'#cbd5e1', background:'rgba(15,23,42,0.55)', border:'1px solid rgba(148,163,184,0.16)', borderRadius:'16px', padding:'12px', marginTop:'4px' }}>
             <div>← / → / WASD or pad: relative movement</div>
             <div>Space: hard drop</div>
@@ -2009,12 +2051,30 @@ export default function FourDirectionTetris() {
           </div>
 
           <div style={{ display:'flex', gap:'10px', justifyContent:'center', marginTop:'6px' }}>
-            <button onClick={resetToTitle} style={{ padding:'10px 18px', borderRadius:'12px', background:'#334155', color:'white', border:'none', cursor:'pointer' }}>Title Screen</button>
-            <button onClick={startGame} style={{ padding:'10px 18px', borderRadius:'12px', background:'#2563eb', color:'white', border:'none', cursor:'pointer' }}>Restart</button>
-            <button onClick={() => setPaused(p => !p)} style={{ padding:'10px 18px', borderRadius:'12px', background:'#475569', color:'white', border:'none', cursor:'pointer' }}>
+            <button
+              onClick={resetToTitle}
+              style={pixelButtonStyle(pixelButtonAssets.title, { padding:'10px 18px', minWidth:'92px', borderRadius:'12px', background:'#334155', color:'white', border:'none', cursor:'pointer' })}
+            >
+              Title Screen
+            </button>
+            <button
+              onClick={startGame}
+              style={pixelButtonStyle(pixelButtonAssets.restart, { padding:'10px 18px', minWidth:'84px', borderRadius:'12px', background:'#2563eb', color:'white', border:'none', cursor:'pointer' })}
+            >
+              Restart
+            </button>
+            <button
+              onClick={() => setPaused(p => !p)}
+              style={pixelButtonStyle(paused ? pixelButtonAssets.resume : pixelButtonAssets.pause, { padding:'10px 18px', minWidth:'74px', borderRadius:'12px', background:'#475569', color:'white', border:'none', cursor:'pointer' })}
+            >
               {paused ? "Resume" : "Pause"}
             </button>
-            <button onClick={() => setShowHighScores(true)} style={{ padding:'10px 18px', borderRadius:'12px', background:'#1e293b', color:'white', border:'1px solid rgba(148,163,184,0.35)', cursor:'pointer' }}>High Scores</button>
+            <button
+              onClick={() => setShowHighScores(true)}
+              style={pixelButtonStyle(pixelButtonAssets.highscores, { padding:'10px 18px', minWidth:'102px', borderRadius:'12px', background:'#1e293b', color:'white', border:'1px solid rgba(148,163,184,0.35)', cursor:'pointer' })}
+            >
+              High Scores
+            </button>
           </div>
 
           {showHighScores && (
@@ -2037,6 +2097,40 @@ export default function FourDirectionTetris() {
                   )) : <div style={{ fontSize:'13px', color:'#64748b' }}>No scores yet</div>}
                 </div>
               </div>
+            </div>
+          )}
+
+          {showSettings && (
+            <div style={{ position:'absolute', inset:'20px', zIndex:45, background:'rgba(2,6,23,0.97)', border:'1px solid rgba(148,163,184,0.3)', borderRadius:'18px', padding:'12px', display:'grid', gap:'10px', alignContent:'start', gridAutoRows:'max-content', overflowY:'auto' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div style={{ fontWeight:800, color:'#e2e8f0' }}>Settings</div>
+                <button onClick={() => setShowSettings(false)} style={{ width:'32px', height:'32px', borderRadius:'8px', border:'1px solid rgba(148,163,184,0.3)', background:'#1e293b', color:'white', cursor:'pointer', fontWeight:800 }}>X</button>
+              </div>
+
+              <label style={{ display:'flex', alignItems:'center', gap:'8px', fontSize:'13px', color:'#cbd5e1' }}>
+                <input type="checkbox" checked={sfxMuted} onChange={e => setSfxMuted(e.target.checked)} />
+                Mute SFX
+              </label>
+
+              <div style={{ display:'grid', gap:'4px' }}>
+                <div style={{ fontSize:'13px', color:'#cbd5e1' }}>SFX Volume: {Math.round(sfxVolume * 100)}%</div>
+                <input type="range" min="0" max="1" step="0.01" value={sfxVolume} onChange={e => setSfxVolume(Number(e.target.value))} />
+              </div>
+
+              <div style={{ display:'grid', gap:'4px' }}>
+                <div style={{ fontSize:'13px', color:'#cbd5e1' }}>Music Volume: {Math.round(musicVolume * 100)}%</div>
+                <input type="range" min="0" max="1" step="0.01" value={musicVolume} onChange={e => setMusicVolume(Number(e.target.value))} />
+              </div>
+
+              <label style={{ display:'flex', alignItems:'center', gap:'8px', fontSize:'13px', color:'#cbd5e1' }}>
+                <input type="checkbox" checked={randomSpawnOrder} onChange={e => setRandomSpawnOrder(e.target.checked)} />
+                Random spawn order
+              </label>
+
+              <label style={{ display:'flex', alignItems:'center', gap:'8px', fontSize:'13px', color:'#cbd5e1' }}>
+                <input type="checkbox" checked={devMode} onChange={e => setDevMode(e.target.checked)} />
+                Dev mode
+              </label>
             </div>
           )}
 
