@@ -1871,10 +1871,10 @@ export default function FourDirectionTetris() {
   const padLabels = getPadLabels();
 
   return (
-    <div style={{ minHeight:'100vh', color:'white', display:'flex', alignItems:'center', justifyContent:'center', padding:'8px', width:'100%', maxWidth:'100vw', overflowX:'hidden', overflowY:'auto', background:'radial-gradient(circle at top, #1e293b 0%, #0f172a 42%, #020617 100%)', fontFamily:'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif', boxSizing:'border-box' }}>
-      <div style={{ margin:'0 auto', width:'100%', maxWidth:'920px', background:'linear-gradient(180deg, rgba(15,23,42,0.96), rgba(2,6,23,0.98))', border:'1px solid rgba(148,163,184,0.25)', borderRadius:'24px', padding:'12px', boxShadow:'0 30px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06)', boxSizing:'border-box' }}>
-        <div style={{ display:'grid', gap:'14px', position:'relative' }}>
-          <div style={{ textAlign:'center', minHeight:'52px', paddingTop:'0', display:'grid', alignContent:'center', justifyItems:'center' }}>
+    <div style={{ minHeight:'100vh', color:'white', display:'flex', alignItems:'center', justifyContent:'center', padding:'8px', width:'100%', maxWidth:'100vw', overflowX:'hidden', overflowY:'auto', background:'radial-gradient(circle at top, #1e293b 0%, #0f172a 42%, #020617 100%)', fontFamily:'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif', boxSizing:'border-box', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none' }}>
+      <div style={{ margin:'0 auto', width:'100%', maxWidth:'920px', background:'linear-gradient(180deg, rgba(15,23,42,0.96), rgba(2,6,23,0.98))', border:'1px solid rgba(148,163,184,0.25)', borderRadius:'24px', padding:'12px', boxShadow:'0 30px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06)', boxSizing:'border-box', display:'grid', justifyItems:'center' }}>
+        <div style={{ display:'grid', gap:'14px', position:'relative', justifyItems:'center' }}>
+          <div style={{ textAlign:'center', minHeight:'52px', paddingTop:'0', display:'grid', alignContent:'center', justifyItems:'center', width:'100%' }}>
             <BlockTitle />
           </div>
 
@@ -1953,7 +1953,7 @@ export default function FourDirectionTetris() {
             ref={canvasRef}
             width={GRID * CELL}
             height={GRID * CELL}
-            style={{ width:'min(100%, 560px)', height:'auto', margin:'0 auto', borderRadius:'18px', border:'1px solid rgba(148,163,184,0.32)', background:'#020617', boxShadow:'0 18px 50px rgba(0,0,0,0.45)', display:'block' }}
+            style={{ width:'min(100%, 560px)', maxWidth:'100%', height:'auto', margin:'0 auto', borderRadius:'18px', border:'1px solid rgba(148,163,184,0.32)', background:'#020617', boxShadow:'0 18px 50px rgba(0,0,0,0.45)', display:'block' }}
           />
 
           {gameOver && (
@@ -1973,6 +1973,8 @@ export default function FourDirectionTetris() {
               alignItems:'center',
               touchAction:'none',
               userSelect:'none',
+              WebkitUserSelect:'none',
+              WebkitTouchCallout:'none',
               width:'min(100%, 320px)',
               margin:'0 auto'
             }}
@@ -1984,7 +1986,7 @@ export default function FourDirectionTetris() {
               onPointerLeave={stopHold}
               onPointerCancel={stopHold}
               onContextMenu={e => e.preventDefault()}
-              style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(148,163,184,0.28)', background:'#1e293b', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer' }}
+              style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(148,163,184,0.28)', background:'#1e293b', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation' }}
             >
               ↑ {padLabels.top}
             </button>
@@ -1996,7 +1998,7 @@ export default function FourDirectionTetris() {
               onPointerLeave={stopHold}
               onPointerCancel={stopHold}
               onContextMenu={e => e.preventDefault()}
-              style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(148,163,184,0.28)', background:'#1e293b', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer' }}
+              style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(148,163,184,0.28)', background:'#1e293b', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation' }}
             >
               ← {padLabels.left}
             </button>
@@ -2006,7 +2008,7 @@ export default function FourDirectionTetris() {
               onPointerLeave={stopHold}
               onPointerCancel={stopHold}
               onContextMenu={e => e.preventDefault()}
-              style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(250,204,21,0.45)', background:'#854d0e', color:'white', fontWeight:900, fontSize:'12px', cursor:'pointer', boxShadow:'0 0 18px rgba(250,204,21,0.16)' }}
+              style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(250,204,21,0.45)', background:'#854d0e', color:'white', fontWeight:900, fontSize:'12px', cursor:'pointer', boxShadow:'0 0 18px rgba(250,204,21,0.16)', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation' }}
             >
               ⬇ {padLabels.center}
             </button>
@@ -2016,7 +2018,7 @@ export default function FourDirectionTetris() {
               onPointerLeave={stopHold}
               onPointerCancel={stopHold}
               onContextMenu={e => e.preventDefault()}
-              style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(148,163,184,0.28)', background:'#1e293b', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer' }}
+              style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(148,163,184,0.28)', background:'#1e293b', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation' }}
             >
               → {padLabels.right}
             </button>
@@ -2028,7 +2030,7 @@ export default function FourDirectionTetris() {
               onPointerLeave={stopHold}
               onPointerCancel={stopHold}
               onContextMenu={e => e.preventDefault()}
-              style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(148,163,184,0.28)', background:'#1e293b', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer' }}
+              style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(148,163,184,0.28)', background:'#1e293b', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation' }}
             >
               ↓ {padLabels.bottom}
             </button>
@@ -2039,7 +2041,7 @@ export default function FourDirectionTetris() {
             {gameMode}
           </div>
 
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:'8px', fontSize:'13px', color:'#cbd5e1', background:'rgba(15,23,42,0.55)', border:'1px solid rgba(148,163,184,0.16)', borderRadius:'16px', padding:'12px', marginTop:'4px' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:'8px', fontSize:'13px', color:'#cbd5e1', background:'rgba(15,23,42,0.55)', border:'1px solid rgba(148,163,184,0.16)', borderRadius:'16px', padding:'12px', marginTop:'4px', width:'100%' }}>
             <div>← / → / WASD or pad: relative movement</div>
             <div>Space: hard drop</div>
             <div>4×4 squares clear</div>
@@ -2050,28 +2052,28 @@ export default function FourDirectionTetris() {
             <div>Arcade: missiles and hearts</div>
           </div>
 
-          <div style={{ display:'flex', gap:'10px', justifyContent:'center', marginTop:'6px' }}>
+          <div style={{ display:'flex', gap:'10px', justifyContent:'center', marginTop:'6px', width:'100%', flexWrap:'wrap' }}>
             <button
               onClick={resetToTitle}
-              style={pixelButtonStyle(pixelButtonAssets.title, { padding:'10px 18px', minWidth:'92px', borderRadius:'12px', background:'#334155', color:'white', border:'none', cursor:'pointer' })}
+              style={pixelButtonStyle(pixelButtonAssets.title, { padding:'10px 18px', minWidth:'92px', borderRadius:'12px', background:'#334155', color:'white', border:'none', cursor:'pointer', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation' })}
             >
               Title Screen
             </button>
             <button
               onClick={startGame}
-              style={pixelButtonStyle(pixelButtonAssets.restart, { padding:'10px 18px', minWidth:'84px', borderRadius:'12px', background:'#2563eb', color:'white', border:'none', cursor:'pointer' })}
+              style={pixelButtonStyle(pixelButtonAssets.restart, { padding:'10px 18px', minWidth:'84px', borderRadius:'12px', background:'#2563eb', color:'white', border:'none', cursor:'pointer', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation' })}
             >
               Restart
             </button>
             <button
               onClick={() => setPaused(p => !p)}
-              style={pixelButtonStyle(paused ? pixelButtonAssets.resume : pixelButtonAssets.pause, { padding:'10px 18px', minWidth:'74px', borderRadius:'12px', background:'#475569', color:'white', border:'none', cursor:'pointer' })}
+              style={pixelButtonStyle(paused ? pixelButtonAssets.resume : pixelButtonAssets.pause, { padding:'10px 18px', minWidth:'74px', borderRadius:'12px', background:'#475569', color:'white', border:'none', cursor:'pointer', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation' })}
             >
               {paused ? "Resume" : "Pause"}
             </button>
             <button
               onClick={() => setShowHighScores(true)}
-              style={pixelButtonStyle(pixelButtonAssets.highscores, { padding:'10px 18px', minWidth:'102px', borderRadius:'12px', background:'#1e293b', color:'white', border:'1px solid rgba(148,163,184,0.35)', cursor:'pointer' })}
+              style={pixelButtonStyle(pixelButtonAssets.highscores, { padding:'10px 18px', minWidth:'102px', borderRadius:'12px', background:'#1e293b', color:'white', border:'1px solid rgba(148,163,184,0.35)', cursor:'pointer', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation' })}
             >
               High Scores
             </button>
