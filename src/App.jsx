@@ -320,6 +320,10 @@ export default function FourDirectionTetris() {
   const [showHighScores, setShowHighScores] = useState(false);
   const [highScoreMessage, setHighScoreMessage] = useState("");
   const [runHighScoreAchieved, setRunHighScoreAchieved] = useState(false);
+  const [showRunHighScoreModal, setShowRunHighScoreModal] = useState(false);
+  const [runHighScoreValue, setRunHighScoreValue] = useState(0);
+  const [shareCopied, setShareCopied] = useState(false);
+  const [sessionRunCounts, setSessionRunCounts] = useState({ classic: 0, arcade: 0 });
   const holdDelayRef = useRef(null);
   const holdIntervalRef = useRef(null);
   const runScoreSavedRef = useRef(false);
@@ -367,6 +371,7 @@ export default function FourDirectionTetris() {
       }
       return next;
     });
+    setSessionRunCounts(prev => ({ ...prev, [key]: (prev[key] || 0) + 1 }));
   }
 
   function maybeFinalizeRunScore() {
@@ -413,6 +418,9 @@ export default function FourDirectionTetris() {
     setNextSideIndex(0);
     setRunHighScoreAchieved(false);
     setHighScoreMessage("");
+    setShowRunHighScoreModal(false);
+    setRunHighScoreValue(0);
+    setShareCopied(false);
     runScoreSavedRef.current = false;
     setHasExtraLife(false);
     setScreenFlash(false);
@@ -994,6 +1002,9 @@ export default function FourDirectionTetris() {
     setNextSideIndex(0);
     setRunHighScoreAchieved(false);
     setHighScoreMessage("");
+    setShowRunHighScoreModal(false);
+    setRunHighScoreValue(0);
+    setShareCopied(false);
     runScoreSavedRef.current = false;
     setHasExtraLife(false);
     setScreenFlash(false);
@@ -1021,7 +1032,9 @@ export default function FourDirectionTetris() {
 
     setScore(prev => {
       const next = prev + gained;
-      if (!runHighScoreAchieved && leaderboardMode(gameMode) && next > currentModeTopScore(gameMode)) {
+      const modeKey = leaderboardMode(gameMode);
+      const hasPriorRunThisSession = modeKey ? (sessionRunCounts[modeKey] || 0) > 0 : false;
+      if (!runHighScoreAchieved && modeKey && hasPriorRunThisSession && next > currentModeTopScore(gameMode)) {
         setRunHighScoreAchieved(true);
         setHighScoreMessage("HIGH SCORE");
         setTimeout(() => setHighScoreMessage(""), 1100);
@@ -1417,6 +1430,24 @@ export default function FourDirectionTetris() {
   useEffect(() => {
     if (gameOver) maybeFinalizeRunScore();
   }, [gameOver]);
+
+  useEffect(() => {
+    if (!gameOver || !runHighScoreAchieved || showRunHighScoreModal) return;
+    setRunHighScoreValue(Math.floor(score));
+    setShowRunHighScoreModal(true);
+  }, [gameOver, runHighScoreAchieved, showRunHighScoreModal, score]);
+
+  async function handleShareHighScore() {
+    const mode = leaderboardMode(gameMode) || gameMode;
+    const text = `I just scored ${Math.floor(runHighScoreValue)} on ${mode} Quadestris!\nhttps://quadestris.vercel.app/`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 1200);
+    } catch {
+      setShareCopied(false);
+    }
+  }
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1816,9 +1847,12 @@ export default function FourDirectionTetris() {
           </div>
 
           {showHighScores && (
-            <div style={{ position:'absolute', inset:'20px', zIndex:40, background:'rgba(2,6,23,0.96)', border:'1px solid rgba(148,163,184,0.3)', borderRadius:'18px', padding:'16px', display:'grid', gap:'12px' }}>
-              <button onClick={() => setShowHighScores(false)} style={{ justifySelf:'end', width:'32px', height:'32px', borderRadius:'8px', border:'1px solid rgba(148,163,184,0.3)', background:'#1e293b', color:'white', cursor:'pointer', fontWeight:800 }}>X</button>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'14px' }}>
+            <div style={{ position:'absolute', inset:'20px', zIndex:40, background:'rgba(2,6,23,0.96)', border:'1px solid rgba(148,163,184,0.3)', borderRadius:'18px', padding:'12px', display:'grid', gap:'8px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div style={{ fontWeight:800, color:'#e2e8f0' }}>High Scores</div>
+                <button onClick={() => setShowHighScores(false)} style={{ width:'32px', height:'32px', borderRadius:'8px', border:'1px solid rgba(148,163,184,0.3)', background:'#1e293b', color:'white', cursor:'pointer', fontWeight:800 }}>X</button>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px' }}>
                 <div style={{ background:'rgba(15,23,42,0.7)', border:'1px solid rgba(148,163,184,0.22)', borderRadius:'12px', padding:'10px' }}>
                   <div style={{ fontWeight:800, marginBottom:'8px' }}>Classic Top 10</div>
                   {(highScores.classic || []).length ? (highScores.classic || []).map((v, i) => (
@@ -1832,6 +1866,17 @@ export default function FourDirectionTetris() {
                   )) : <div style={{ fontSize:'13px', color:'#64748b' }}>No scores yet</div>}
                 </div>
               </div>
+            </div>
+          )}
+
+          {showRunHighScoreModal && (
+            <div style={{ position:'absolute', inset:'20px', zIndex:50, background:'rgba(2,6,23,0.96)', border:'1px solid rgba(34,197,94,0.45)', borderRadius:'18px', padding:'16px', display:'grid', gap:'12px', alignContent:'center', justifyItems:'center' }}>
+              <div style={{ fontWeight:900, fontSize:'26px', color:'#22c55e' }}>High Score: {Math.floor(runHighScoreValue)}</div>
+              <div style={{ display:'flex', gap:'10px' }}>
+                <button onClick={handleShareHighScore} style={{ padding:'10px 18px', borderRadius:'12px', background:'#16a34a', color:'white', border:'none', cursor:'pointer', fontWeight:700 }}>Share</button>
+                <button onClick={() => setShowRunHighScoreModal(false)} style={{ padding:'10px 18px', borderRadius:'12px', background:'#334155', color:'white', border:'none', cursor:'pointer', fontWeight:700 }}>Continue</button>
+              </div>
+              <div style={{ minHeight:'18px', fontSize:'13px', color:'#86efac' }}>{shareCopied ? "copied to clipboard" : ""}</div>
             </div>
           )}
         </div>
