@@ -381,6 +381,7 @@ export default function FourDirectionTetris() {
   const [reverseUntil, setReverseUntil] = useState(0);
   const [pendingCursedPiece, setPendingCursedPiece] = useState(false);
   const [pendingBombPiece, setPendingBombPiece] = useState(false);
+  const [nextPreview, setNextPreview] = useState([]);
   const [showHighScores, setShowHighScores] = useState(false);
   const [highScoreMessage, setHighScoreMessage] = useState("");
   const [runHighScoreAchieved, setRunHighScoreAchieved] = useState(false);
@@ -1028,6 +1029,47 @@ export default function FourDirectionTetris() {
     return side;
   }
 
+  function previewPieceForSide(side, preferCursed = false, forceBomb = false) {
+    if (forceBomb) return { ...randomPiece(side), isBomb: true };
+    if (preferCursed) return randomCursedPiece(side);
+    if (shouldUseCursedPool()) return randomCursedPiece(side);
+    return randomPiece(side);
+  }
+
+  function buildNextPreview() {
+    const order = ["top", "right", "bottom", "left"];
+    const reverseFallOrder = gameMode === "arcade" && reverseUntil > Date.now();
+    const step = reverseFallOrder ? -1 : 1;
+    const getSideAt = i => {
+      if (randomSpawnOrder) return randomSide();
+      const idx = (nextSideIndex + (step * i) + order.length * 4) % order.length;
+      return order[idx];
+    };
+
+    let bombPending = pendingBombPiece;
+    let cursedPending = pendingCursedPiece;
+
+    if (pendingDualSpawn && gameMode === "arcade") {
+      const firstSide = getSideAt(0);
+      const secondSide = oppositeSide(firstSide);
+      const first = previewPieceForSide(firstSide, cursedPending, bombPending);
+      if (bombPending) bombPending = false;
+      if (cursedPending) cursedPending = false;
+      const second = previewPieceForSide(secondSide, false, false);
+      return [first, second];
+    }
+
+    const previews = [];
+    for (let i = 0; i < 2; i++) {
+      const side = getSideAt(i);
+      const next = previewPieceForSide(side, cursedPending, bombPending);
+      previews.push(next);
+      if (bombPending) bombPending = false;
+      if (cursedPending) cursedPending = false;
+    }
+    return previews;
+  }
+
   function nextSpawnPiece(forcedSide = null) {
     const side = forcedSide || getNextSpawnSide();
     if (pendingBombPiece) {
@@ -1206,6 +1248,30 @@ export default function FourDirectionTetris() {
   }
 
   function settleAnimated(startBoard) {
+    const finishSettle = current => {
+      setBoard(current);
+      setAnimating(false);
+      maybeSpawnPowerUp(current);
+      if (pendingDualSpawn && gameMode === "arcade" && !spawnDual(current)) {
+        spawn(current);
+      } else if (!pendingDualSpawn || gameMode !== "arcade") {
+        spawn(current);
+      }
+      setPendingDualSpawn(false);
+    };
+
+    if (gameMode === "classic") {
+      finishSettle(startBoard);
+      return;
+    }
+
+    if (gameMode === "arcade") {
+      const result = settleOneTick(startBoard);
+      if (result.bonus) addScore(result.bonus, "loose");
+      finishSettle(result.board);
+      return;
+    }
+
     let current = startBoard.map(row => [...row]);
     let totalBonus = 0;
     let ticks = 0;
@@ -1221,14 +1287,7 @@ export default function FourDirectionTetris() {
         setTimeout(run, SETTLE_TICK_MS);
       } else {
         if (totalBonus) addScore(totalBonus, "loose");
-        setAnimating(false);
-        maybeSpawnPowerUp(current);
-        if (pendingDualSpawn && gameMode === "arcade" && !spawnDual(current)) {
-          spawn(current);
-        } else if (!pendingDualSpawn || gameMode !== "arcade") {
-          spawn(current);
-        }
-        setPendingDualSpawn(false);
+        finishSettle(current);
       }
     };
 
@@ -1606,6 +1665,14 @@ export default function FourDirectionTetris() {
   }, [screen, gameOver, paused, animating, pieces.length, pendingDualSpawn, pendingCursedPiece, gameMode, board]);
 
   useEffect(() => {
+    if (screen !== "playing" && screen !== "countdown") {
+      setNextPreview([]);
+      return;
+    }
+    setNextPreview(buildNextPreview());
+  }, [screen, gameMode, randomSpawnOrder, nextSideIndex, reverseUntil, pendingDualSpawn, pendingCursedPiece, pendingBombPiece]);
+
+  useEffect(() => {
     if (gameOver) maybeFinalizeRunScore();
   }, [gameOver]);
 
@@ -1698,16 +1765,61 @@ export default function FourDirectionTetris() {
     ctx.fillText(`SCORE ${Math.floor(score)}`, SAFE_MIN * CELL + 6, hudY);
     ctx.fillText(`HIGH ${Math.floor(currentModeTopScore())}`, SAFE_MIN * CELL + 116, hudY);
     ctx.fillText(`LEVEL ${level}`, SAFE_MIN * CELL + 214, hudY);
-    ctx.fillStyle = hasExtraLife ? "#ff6680" : "rgba(100,116,139,0.95)";
-    ctx.fillText(`LIFE ${hasExtraLife ? "YES" : "NO"}`, SAFE_MIN * CELL + 372, hudY);
-    ctx.fillStyle = "#fbbf24";
-    ctx.fillText(`MULTI x${scoreMultiplier}`, SAFE_MIN * CELL + 442, hudY);
+    let hudRightX = SAFE_MIN * CELL + 442;
+    if (scoreMultiplier > 1) {
+      ctx.fillStyle = "#fbbf24";
+      ctx.fillText(`x${scoreMultiplier}`, hudRightX, hudY);
+      hudRightX -= 64;
+    }
+    if (hasExtraLife) {
+      ctx.fillStyle = "#ff6680";
+      ctx.fillText("LIFE", hudRightX, hudY);
+    }
 
     if (scoreFlash) {
       ctx.fillStyle = "#6ee7b7";
       ctx.font = "bold 12px sans-serif";
       ctx.textAlign = "left";
       ctx.fillText(scoreFlash, SAFE_MIN * CELL + 286, hudY);
+    }
+
+    if (nextPreview.length) {
+      const previewCell = 5;
+      const previewGap = 1;
+      const baseX = SAFE_MIN * CELL + 470;
+      const baseY = SAFE_MIN * CELL - 20;
+
+      ctx.fillStyle = "rgba(203,213,225,0.95)";
+      ctx.font = "bold 10px sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText("NEXT", baseX, baseY);
+
+      const drawPreview = (piece, originX, originY) => {
+        if (!piece?.shape?.length) return;
+        if (piece.cellColors) {
+          ctx.fillStyle = "rgba(124,58,237,0.95)";
+          ctx.fillRect(originX, originY, 18, 18);
+          ctx.fillStyle = "#ffffff";
+          ctx.font = "bold 14px sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillText("?", originX + 9, originY + 14);
+          ctx.textAlign = "left";
+          return;
+        }
+        for (let r = 0; r < piece.shape.length; r++) {
+          for (let c = 0; c < piece.shape[r].length; c++) {
+            if (!piece.shape[r][c]) continue;
+            const color = piece.cellColors?.[r]?.[c] || (piece.isBomb ? "#ffffff" : piece.color || "#e2e8f0");
+            const x = originX + c * (previewCell + previewGap);
+            const y = originY + r * (previewCell + previewGap);
+            ctx.fillStyle = color;
+            ctx.fillRect(x, y, previewCell, previewCell);
+          }
+        }
+      };
+
+      drawPreview(nextPreview[0], baseX, baseY + 4);
+      drawPreview(nextPreview[1], baseX + 28, baseY + 4);
     }
 
     const drawCell = (x, y, color) => {
@@ -1866,7 +1978,7 @@ export default function FourDirectionTetris() {
       ctx.font = "16px sans-serif";
       ctx.fillText(failReason || "Game ended", canvas.width / 2, canvas.height / 2 + 34);
     }
-  }, [board, pieces, gameOver, failReason, animating, flashKeys, screen, countdown, powerUps, multiplierPopup, destroyedPiece, missileEffect, runHighScoreAchieved, highScoreMessage, score, level, gameMode, hasExtraLife, scoreMultiplier, scoreFlash, highScores, reverseUntil, pendingDualSpawn, pendingCursedPiece]);
+  }, [board, pieces, gameOver, failReason, animating, flashKeys, screen, countdown, powerUps, multiplierPopup, destroyedPiece, missileEffect, runHighScoreAchieved, highScoreMessage, score, level, gameMode, hasExtraLife, scoreMultiplier, scoreFlash, highScores, reverseUntil, pendingDualSpawn, pendingCursedPiece, pendingBombPiece, nextPreview]);
 
   const padLabels = getPadLabels();
 
