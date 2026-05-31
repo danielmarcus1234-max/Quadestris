@@ -388,6 +388,7 @@ export default function FourDirectionTetris() {
   const holdIntervalRef = useRef(null);
   const runScoreSavedRef = useRef(false);
   const stepRef = useRef(() => {});
+  const prevGameOverRef = useRef(false);
   const pickupSfxRef = useRef(null);
   const cursedPickupSfxRef = useRef(null);
   const clearSfxRef = useRef(null);
@@ -975,7 +976,6 @@ export default function FourDirectionTetris() {
 
     setFailReason(reason);
     setGameOver(true);
-    playSfx(gameOverSfxRef);
     maybeFinalizeRunScore();
     return false;
   }
@@ -1579,6 +1579,14 @@ export default function FourDirectionTetris() {
   }, [gameOver]);
 
   useEffect(() => {
+    if (!prevGameOverRef.current && gameOver) {
+      if (runHighScoreAchieved) playSfx(highScoreSfxRef);
+      else playSfx(gameOverSfxRef);
+    }
+    prevGameOverRef.current = gameOver;
+  }, [gameOver, runHighScoreAchieved]);
+
+  useEffect(() => {
     if (!gameOver || !runHighScoreAchieved || showRunHighScoreModal || runHighScoreDismissed) return;
     setRunHighScoreValue(Math.floor(score));
     setShowRunHighScoreModal(true);
@@ -1625,6 +1633,28 @@ export default function FourDirectionTetris() {
     ctx.lineWidth = 4;
     ctx.strokeRect(SAFE_MIN * CELL, SAFE_MIN * CELL, (SAFE_MAX - SAFE_MIN + 1) * CELL, (SAFE_MAX - SAFE_MIN + 1) * CELL);
     ctx.lineWidth = 1;
+
+    // HUD around the barrier (keeps UI integrated with the play area).
+    ctx.fillStyle = "rgba(148,163,184,0.95)";
+    ctx.font = "bold 11px sans-serif";
+    ctx.textAlign = "left";
+    const hudY = SAFE_MIN * CELL - 9;
+    ctx.fillText(`SCORE ${Math.floor(score)}`, SAFE_MIN * CELL + 6, hudY);
+    ctx.fillText(`HIGH ${Math.floor(currentModeTopScore())}`, SAFE_MIN * CELL + 116, hudY);
+    ctx.fillText(`LEVEL ${level}`, SAFE_MIN * CELL + 214, hudY);
+    ctx.fillText(`MODE ${String(gameMode).toUpperCase()}`, SAFE_MIN * CELL + 286, hudY);
+    ctx.fillStyle = hasExtraLife ? "#ff6680" : "rgba(100,116,139,0.95)";
+    ctx.fillText(`LIFE ${hasExtraLife ? "YES" : "NO"}`, SAFE_MIN * CELL + 405, hudY);
+    ctx.fillStyle = "#fbbf24";
+    ctx.fillText(`MULTI x${scoreMultiplier}`, SAFE_MIN * CELL + 472, hudY);
+
+    if (scoreFlash) {
+      ctx.fillStyle = "#6ee7b7";
+      ctx.font = "bold 12px sans-serif";
+      ctx.textAlign = "right";
+      ctx.fillText(scoreFlash, SAFE_MAX * CELL - 6, SAFE_MIN * CELL - 9);
+      ctx.textAlign = "left";
+    }
 
     const drawCell = (x, y, color) => {
       const flashing = flashKeys.has(`${x},${y}`);
@@ -1782,36 +1812,17 @@ export default function FourDirectionTetris() {
       ctx.font = "16px sans-serif";
       ctx.fillText(failReason || "Game ended", canvas.width / 2, canvas.height / 2 + 34);
     }
-  }, [board, pieces, gameOver, failReason, animating, flashKeys, screen, countdown, powerUps, multiplierPopup, destroyedPiece, missileEffect, runHighScoreAchieved, highScoreMessage]);
+  }, [board, pieces, gameOver, failReason, animating, flashKeys, screen, countdown, powerUps, multiplierPopup, destroyedPiece, missileEffect, runHighScoreAchieved, highScoreMessage, score, level, gameMode, hasExtraLife, scoreMultiplier, scoreFlash, highScores]);
 
   const padLabels = getPadLabels();
 
   return (
-    <div style={{ minHeight:'100vh', height:'100vh', color:'white', display:'flex', alignItems:'center', justifyContent:'center', padding:'8px', width:'100%', maxWidth:'100vw', overflow:'hidden', overscrollBehavior:'none', background:'radial-gradient(circle at top, #1e293b 0%, #0f172a 42%, #020617 100%)', fontFamily:'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif', boxSizing:'border-box' }}>
+    <div style={{ minHeight:'100vh', color:'white', display:'flex', alignItems:'center', justifyContent:'center', padding:'8px', width:'100%', maxWidth:'100vw', overflowX:'hidden', overflowY:'auto', background:'radial-gradient(circle at top, #1e293b 0%, #0f172a 42%, #020617 100%)', fontFamily:'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif', boxSizing:'border-box' }}>
       <div style={{ margin:'0 auto', width:'100%', maxWidth:'920px', background:'linear-gradient(180deg, rgba(15,23,42,0.96), rgba(2,6,23,0.98))', border:'1px solid rgba(148,163,184,0.25)', borderRadius:'24px', padding:'12px', boxShadow:'0 30px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06)', boxSizing:'border-box' }}>
-        <div style={{ display:'grid', gap:'18px', position:'relative' }}>
-          <div style={{ display:'grid', gridTemplateColumns:'minmax(120px, 160px) minmax(0, 1fr)', alignItems:'center', gap:'12px' }}>
-            <div style={{ textAlign:'left', background:'rgba(15,23,42,0.82)', border:'1px solid rgba(148,163,184,0.22)', borderRadius:'14px', padding:'10px 12px 28px', minWidth:'126px', backdropFilter:'blur(10px)', position:'relative' }}>
-              <div style={{ fontSize:'11px', letterSpacing:'0.14em', textTransform:'uppercase', color:'#94a3b8' }}>Score</div>
-              <div style={{ fontSize:'28px', fontWeight:800, lineHeight:1 }}>{Math.floor(score)}</div>
-              <div style={{ fontSize:'11px', color:'#94a3b8', marginTop:'2px' }}>High {Math.floor(currentModeTopScore())}</div>
-              <div style={{ fontSize:'12px', color:'#cbd5e1', marginTop:'4px' }}>Level {level}</div>
-              <div style={{ position:'absolute', left:'12px', right:'12px', bottom:'8px', fontSize:'12px', color:'#6ee7b7', lineHeight:1.2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', pointerEvents:'none' }}>{scoreFlash}</div>
-              <div style={{ height:'1px', background:'rgba(148,163,184,0.16)', margin:'8px 0' }} />
-              <div style={{ fontSize:'10px', color:'#64748b' }}>4x4 clear = 100 × level</div>
-              <div style={{ fontSize:'10px', color:'#64748b' }}>Loose block = 10 × level</div>
-              <div style={{ fontSize:'10px', color:'#94a3b8', marginTop:'6px' }}>Mode: {gameMode}</div>
-              <div style={{ fontSize:'10px', color: hasExtraLife ? '#ff6680' : '#475569' }}>
-                Life: {hasExtraLife ? '♥' : '-'}
-              </div>
-              <div style={{ fontSize:'10px', color:'#fbbf24' }}>Multiplier: x{scoreMultiplier}</div>
-            </div>
-
-            <div style={{ textAlign:'center', minHeight:'64px', paddingTop:'4px' }}>
+        <div style={{ display:'grid', gap:'14px', position:'relative' }}>
+          <div style={{ textAlign:'center', minHeight:'52px', paddingTop:'0', display:'grid', alignContent:'center', justifyItems:'center' }}>
             <BlockTitle />
             <p style={{ color:'#cbd5e1', fontSize:'14px', margin:'6px 0 0' }}>Build from the centre. Clear 4×4 blocks. Do not breach the red perimeter.</p>
-            </div>
-
           </div>
 
           {screen === "title" && (
@@ -1907,6 +1918,13 @@ export default function FourDirectionTetris() {
             style={{ width:'min(100%, 560px)', height:'auto', margin:'0 auto', borderRadius:'18px', border:'1px solid rgba(148,163,184,0.32)', background:'#020617', boxShadow:'0 18px 50px rgba(0,0,0,0.45)', display:'block' }}
           />
 
+          {gameOver && (
+            <div style={{ display:'flex', gap:'10px', justifyContent:'center', marginTop:'2px' }}>
+              <button onClick={startGame} style={{ padding:'8px 14px', borderRadius:'10px', background:'#2563eb', color:'white', border:'none', cursor:'pointer', fontWeight:700 }}>Restart</button>
+              <button onClick={resetToTitle} style={{ padding:'8px 14px', borderRadius:'10px', background:'#334155', color:'white', border:'none', cursor:'pointer', fontWeight:700 }}>Title</button>
+            </div>
+          )}
+
           <div
             style={{
               display:'grid',
@@ -1930,7 +1948,7 @@ export default function FourDirectionTetris() {
               onContextMenu={e => e.preventDefault()}
               style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(148,163,184,0.28)', background:'#1e293b', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer' }}
             >
-              {padLabels.top}
+              ↑ {padLabels.top}
             </button>
             <div />
 
@@ -1942,7 +1960,7 @@ export default function FourDirectionTetris() {
               onContextMenu={e => e.preventDefault()}
               style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(148,163,184,0.28)', background:'#1e293b', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer' }}
             >
-              {padLabels.left}
+              ← {padLabels.left}
             </button>
             <button
               onPointerDown={e => { e.preventDefault(); startHold('center'); }}
@@ -1952,7 +1970,7 @@ export default function FourDirectionTetris() {
               onContextMenu={e => e.preventDefault()}
               style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(250,204,21,0.45)', background:'#854d0e', color:'white', fontWeight:900, fontSize:'12px', cursor:'pointer', boxShadow:'0 0 18px rgba(250,204,21,0.16)' }}
             >
-              {padLabels.center}
+              ⬇ {padLabels.center}
             </button>
             <button
               onPointerDown={e => { e.preventDefault(); startHold('right'); }}
@@ -1962,7 +1980,7 @@ export default function FourDirectionTetris() {
               onContextMenu={e => e.preventDefault()}
               style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(148,163,184,0.28)', background:'#1e293b', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer' }}
             >
-              {padLabels.right}
+              → {padLabels.right}
             </button>
 
             <div />
@@ -1974,12 +1992,12 @@ export default function FourDirectionTetris() {
               onContextMenu={e => e.preventDefault()}
               style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(148,163,184,0.28)', background:'#1e293b', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer' }}
             >
-              {padLabels.bottom}
+              ↓ {padLabels.bottom}
             </button>
             <div />
           </div>
 
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:'8px', fontSize:'13px', color:'#cbd5e1', background:'rgba(15,23,42,0.55)', border:'1px solid rgba(148,163,184,0.16)', borderRadius:'16px', padding:'12px' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:'8px', fontSize:'13px', color:'#cbd5e1', background:'rgba(15,23,42,0.55)', border:'1px solid rgba(148,163,184,0.16)', borderRadius:'16px', padding:'12px', marginTop:'4px' }}>
             <div>← / → / WASD or pad: relative movement</div>
             <div>Space: hard drop</div>
             <div>4×4 squares clear</div>
@@ -1990,7 +2008,7 @@ export default function FourDirectionTetris() {
             <div>Arcade: missiles and hearts</div>
           </div>
 
-          <div style={{ display:'flex', gap:'10px', justifyContent:'center' }}>
+          <div style={{ display:'flex', gap:'10px', justifyContent:'center', marginTop:'6px' }}>
             <button onClick={resetToTitle} style={{ padding:'10px 18px', borderRadius:'12px', background:'#334155', color:'white', border:'none', cursor:'pointer' }}>Title Screen</button>
             <button onClick={startGame} style={{ padding:'10px 18px', borderRadius:'12px', background:'#2563eb', color:'white', border:'none', cursor:'pointer' }}>Restart</button>
             <button onClick={() => setPaused(p => !p)} style={{ padding:'10px 18px', borderRadius:'12px', background:'#475569', color:'white', border:'none', cursor:'pointer' }}>
