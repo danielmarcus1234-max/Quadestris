@@ -61,7 +61,7 @@ function rotate(shape) {
 
 function randomPiece(forcedSide = null, shapePool = SHAPES) {
   const index = Math.floor(Math.random() * shapePool.length);
-  const side = forcedSide || ["top", "right", "bottom", "left"][Math.floor(Math.random() * 4)];
+  const side = forcedSide || randomSide();
   const shape = shapePool[index];
   let x = CENTRE - Math.floor(shape[0].length / 2);
   let y = CENTRE - Math.floor(shape.length / 2);
@@ -72,6 +72,10 @@ function randomPiece(forcedSide = null, shapePool = SHAPES) {
   if (side === "right") x = SAFE_MAX - shape[0].length + 1;
 
   return { id: crypto.randomUUID(), shape, color: COLORS[index % COLORS.length], x, y, side };
+}
+
+function randomSide() {
+  return ["top", "right", "bottom", "left"][Math.floor(Math.random() * 4)];
 }
 
 function oppositeSide(side) {
@@ -287,6 +291,8 @@ export default function FourDirectionTetris() {
   const [level, setLevel] = useState(1);
   const [selectedLevel, setSelectedLevel] = useState(1);
   const [gameMode, setGameMode] = useState("classic");
+  const [randomSpawnOrder, setRandomSpawnOrder] = useState(false);
+  const [nextSideIndex, setNextSideIndex] = useState(0);
   const [devMode, setDevMode] = useState(false);
   const [screen, setScreen] = useState("title");
   const [countdown, setCountdown] = useState(null);
@@ -343,6 +349,7 @@ export default function FourDirectionTetris() {
     setReverseUntil(0);
     setPendingCursedPiece(false);
     setPendingBombPiece(false);
+    setNextSideIndex(0);
     setHasExtraLife(false);
     setScreenFlash(false);
     setGameOver(false);
@@ -785,19 +792,33 @@ export default function FourDirectionTetris() {
     return gameMode === "cursed" && Math.random() < 0.5;
   }
 
+  function getNextSpawnSide(advance = true) {
+    if (randomSpawnOrder) return randomSide();
+
+    const order = ["top", "right", "bottom", "left"];
+    const reverseFallOrder = gameMode === "arcade" && reverseUntil > Date.now();
+    const side = order[nextSideIndex];
+    if (advance) {
+      const step = reverseFallOrder ? -1 : 1;
+      setNextSideIndex(prev => (prev + step + order.length) % order.length);
+    }
+    return side;
+  }
+
   function nextSpawnPiece(forcedSide = null) {
+    const side = forcedSide || getNextSpawnSide();
     if (pendingBombPiece) {
       setPendingBombPiece(false);
-      return { ...randomPiece(forcedSide), isBomb: true };
+      return { ...randomPiece(side), isBomb: true };
     }
     if (pendingCursedPiece) {
       setPendingCursedPiece(false);
-      return randomPiece(forcedSide, CURSED_SHAPES);
+      return randomPiece(side, CURSED_SHAPES);
     }
     if (shouldUseCursedPool()) {
-      return randomPiece(forcedSide, CURSED_SHAPES);
+      return randomPiece(side, CURSED_SHAPES);
     }
-    return randomPiece(forcedSide);
+    return randomPiece(side);
   }
 
   function triggerBombPieceLock(startBoard, bombPiece) {
@@ -858,9 +879,12 @@ export default function FourDirectionTetris() {
   }
 
   function spawnDual(nextBoard) {
+    const scheduledSide = getNextSpawnSide(false);
+    const reverseFallOrder = gameMode === "arcade" && reverseUntil > Date.now();
+    const step = reverseFallOrder ? -1 : 1;
     const useCursed = pendingCursedPiece || shouldUseCursedPool();
     for (let attempt = 0; attempt < 80; attempt++) {
-      const first = useCursed ? randomPiece(null, CURSED_SHAPES) : randomPiece();
+      const first = useCursed ? randomPiece(scheduledSide, CURSED_SHAPES) : randomPiece(scheduledSide);
       const second = shouldUseCursedPool()
         ? randomPiece(oppositeSide(first.side), CURSED_SHAPES)
         : randomPiece(oppositeSide(first.side));
@@ -877,6 +901,7 @@ export default function FourDirectionTetris() {
       }
 
       if (useCursed) setPendingCursedPiece(false);
+      if (!randomSpawnOrder) setNextSideIndex(prev => (prev + step + 4) % 4);
       setPieces([first, second]);
       return true;
     }
@@ -900,6 +925,7 @@ export default function FourDirectionTetris() {
     setReverseUntil(0);
     setPendingCursedPiece(false);
     setPendingBombPiece(false);
+    setNextSideIndex(0);
     setHasExtraLife(false);
     setScreenFlash(false);
     setGameOver(false);
@@ -1582,6 +1608,14 @@ export default function FourDirectionTetris() {
                   {[1,2,3,4,5,6,7,8,9].map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
               </div>
+              <label style={{ display:'flex', alignItems:'center', gap:'8px', fontSize:'13px', color:'#cbd5e1' }}>
+                <input
+                  type="checkbox"
+                  checked={randomSpawnOrder}
+                  onChange={e => setRandomSpawnOrder(e.target.checked)}
+                />
+                Random spawn order
+              </label>
               <label style={{ display:'flex', alignItems:'center', gap:'8px', fontSize:'13px', color:'#cbd5e1' }}>
                 <input
                   type="checkbox"
