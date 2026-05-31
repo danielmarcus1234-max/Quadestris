@@ -1261,7 +1261,18 @@ export default function FourDirectionTetris() {
     };
 
     if (gameMode === "classic") {
-      finishSettle(startBoard);
+      const connected = connectedToCore(startBoard);
+      const next = startBoard.map(row => [...row]);
+      let removed = 0;
+      for (let y = SAFE_MIN; y <= SAFE_MAX; y++) {
+        for (let x = SAFE_MIN; x <= SAFE_MAX; x++) {
+          if (!next[y][x] || isCoreCell(x, y) || connected[y][x]) continue;
+          next[y][x] = null;
+          removed++;
+        }
+      }
+      if (removed) addScore(removed * 10, "loose");
+      finishSettle(next);
       return;
     }
 
