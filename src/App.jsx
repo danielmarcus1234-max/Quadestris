@@ -60,6 +60,11 @@ function rotate(shape) {
   return shape[0].map((_, i) => shape.map(row => row[i]).reverse());
 }
 
+function rotateColorGrid(grid) {
+  if (!grid || !grid.length) return grid;
+  return grid[0].map((_, i) => grid.map(row => row[i]).reverse());
+}
+
 function randomPiece(forcedSide = null, shapePool = SHAPES) {
   const index = Math.floor(Math.random() * shapePool.length);
   const side = forcedSide || randomSide();
@@ -382,6 +387,7 @@ export default function FourDirectionTetris() {
   const holdDelayRef = useRef(null);
   const holdIntervalRef = useRef(null);
   const runScoreSavedRef = useRef(false);
+  const stepRef = useRef(() => {});
 
   function levelForScore(points) {
     if (points >= 36500) return 9;
@@ -1205,6 +1211,10 @@ export default function FourDirectionTetris() {
     }
   }
 
+  useEffect(() => {
+    stepRef.current = step;
+  });
+
   function moveRelative(direction) {
     if (screen !== "playing" || gameOver || paused || animating || !pieces.length) return;
     const nextPieces = [];
@@ -1252,7 +1262,11 @@ export default function FourDirectionTetris() {
     for (const activePiece of pieces) {
       const rotated = rotate(activePiece.shape);
       if (validSideMove(board, activePiece, activePiece.x, activePiece.y, rotated)) {
-        const rotatedPiece = { ...activePiece, shape: rotated };
+        const rotatedPiece = {
+          ...activePiece,
+          shape: rotated,
+          cellColors: rotateColorGrid(activePiece.cellColors),
+        };
         const pickup = collectPowerUps(rotatedPiece, board, pieces.length > 1);
         if (!(pickup.collected && pickup.removePiece)) {
           nextPieces.push(rotatedPiece);
@@ -1451,9 +1465,9 @@ export default function FourDirectionTetris() {
   useEffect(() => {
     const baseSpeed = Math.max(MIN_SPEED, Math.floor(START_SPEED * Math.pow(0.84, level - 1)));
     const speed = slowMoUntil > Date.now() ? Math.round(baseSpeed * 1.85) : baseSpeed;
-    const id = setInterval(step, speed);
+    const id = setInterval(() => stepRef.current(), speed);
     return () => clearInterval(id);
-  }, [level, step, slowMoUntil]);
+  }, [level, slowMoUntil]);
 
   useEffect(() => {
     if (!slowMoUntil) return;
