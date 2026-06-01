@@ -2088,9 +2088,9 @@ export default function FourDirectionTetris() {
           <div
             style={{
               display:'grid',
-              gridTemplateColumns:'repeat(3, minmax(68px, 1fr))',
-              gridTemplateRows:'repeat(3, 56px)',
-              gap:'6px',
+              gridTemplateColumns:'repeat(3, minmax(92px, 1fr))',
+              gridTemplateRows:'repeat(3, 92px)',
+              gap:'8px',
               justifyContent:'center',
               alignItems:'center',
               touchAction:'none',
@@ -2108,10 +2108,10 @@ export default function FourDirectionTetris() {
               onPointerLeave={stopHold}
               onPointerCancel={stopHold}
               onContextMenu={e => e.preventDefault()}
-              style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(148,163,184,0.28)', background:'#1e293b', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation' }}
+              style={{ height:'92px', borderRadius:'12px', border:'none', background:'transparent', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation', padding:0, display:'grid', placeItems:'center' }}
             >
               <span style={{ display:'grid', justifyItems:'center', lineHeight:1 }}>
-                <img src={padArrowSrc} alt="" draggable={false} style={{ width:'18px', height:'18px', transform:'rotate(-90deg)', imageRendering:'pixelated', pointerEvents:'none' }} />
+                <img src={padArrowSrc} alt="" draggable={false} style={{ width:'84px', height:'84px', transform:'rotate(-90deg)', imageRendering:'pixelated', pointerEvents:'none' }} />
               </span>
             </button>
             <div />
@@ -2122,10 +2122,10 @@ export default function FourDirectionTetris() {
               onPointerLeave={stopHold}
               onPointerCancel={stopHold}
               onContextMenu={e => e.preventDefault()}
-              style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(148,163,184,0.28)', background:'#1e293b', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation' }}
+              style={{ height:'92px', borderRadius:'12px', border:'none', background:'transparent', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation', padding:0, display:'grid', placeItems:'center' }}
             >
               <span style={{ display:'grid', justifyItems:'center', lineHeight:1 }}>
-                <img src={padArrowSrc} alt="" draggable={false} style={{ width:'18px', height:'18px', transform:'rotate(180deg)', imageRendering:'pixelated', pointerEvents:'none' }} />
+                <img src={padArrowSrc} alt="" draggable={false} style={{ width:'84px', height:'84px', transform:'rotate(180deg)', imageRendering:'pixelated', pointerEvents:'none' }} />
               </span>
             </button>
             <button
@@ -2144,10 +2144,10 @@ export default function FourDirectionTetris() {
               onPointerLeave={stopHold}
               onPointerCancel={stopHold}
               onContextMenu={e => e.preventDefault()}
-              style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(148,163,184,0.28)', background:'#1e293b', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation' }}
+              style={{ height:'92px', borderRadius:'12px', border:'none', background:'transparent', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation', padding:0, display:'grid', placeItems:'center' }}
             >
               <span style={{ display:'grid', justifyItems:'center', lineHeight:1 }}>
-                <img src={padArrowSrc} alt="" draggable={false} style={{ width:'18px', height:'18px', transform:'rotate(0deg)', imageRendering:'pixelated', pointerEvents:'none' }} />
+                <img src={padArrowSrc} alt="" draggable={false} style={{ width:'84px', height:'84px', transform:'rotate(0deg)', imageRendering:'pixelated', pointerEvents:'none' }} />
               </span>
             </button>
 
@@ -2158,10 +2158,10 @@ export default function FourDirectionTetris() {
               onPointerLeave={stopHold}
               onPointerCancel={stopHold}
               onContextMenu={e => e.preventDefault()}
-              style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(148,163,184,0.28)', background:'#1e293b', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation' }}
+              style={{ height:'92px', borderRadius:'12px', border:'none', background:'transparent', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation', padding:0, display:'grid', placeItems:'center' }}
             >
               <span style={{ display:'grid', justifyItems:'center', lineHeight:1 }}>
-                <img src={padArrowSrc} alt="" draggable={false} style={{ width:'18px', height:'18px', transform:'rotate(90deg)', imageRendering:'pixelated', pointerEvents:'none' }} />
+                <img src={padArrowSrc} alt="" draggable={false} style={{ width:'84px', height:'84px', transform:'rotate(90deg)', imageRendering:'pixelated', pointerEvents:'none' }} />
               </span>
             </button>
             <div />
