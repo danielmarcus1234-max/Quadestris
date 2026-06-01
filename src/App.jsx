@@ -1990,6 +1990,7 @@ export default function FourDirectionTetris() {
   }, [board, pieces, gameOver, failReason, animating, flashKeys, screen, countdown, powerUps, multiplierPopup, destroyedPiece, missileEffect, runHighScoreAchieved, highScoreMessage, score, level, gameMode, hasExtraLife, scoreMultiplier, scoreFlash, highScores, reverseUntil, pendingDualSpawn, pendingCursedPiece, pendingBombPiece, nextPreview]);
 
   const padLabels = getPadLabels();
+  const padArrowSrc = "/UI/arrow orientation right.png";
 
   return (
     <div style={{ minHeight:'100vh', color:'white', display:'flex', alignItems:'center', justifyContent:'center', padding:'8px', width:'100%', maxWidth:'100vw', overflowX:'hidden', overflowY:'auto', background:'radial-gradient(circle at top, #1e293b 0%, #0f172a 42%, #020617 100%)', fontFamily:'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif', boxSizing:'border-box', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none' }}>
@@ -2109,7 +2110,9 @@ export default function FourDirectionTetris() {
               onContextMenu={e => e.preventDefault()}
               style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(148,163,184,0.28)', background:'#1e293b', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation' }}
             >
-              ↑ {padLabels.top}
+              <span style={{ display:'grid', justifyItems:'center', lineHeight:1 }}>
+                <img src={padArrowSrc} alt="" draggable={false} style={{ width:'18px', height:'18px', transform:'rotate(-90deg)', imageRendering:'pixelated', pointerEvents:'none' }} />
+              </span>
             </button>
             <div />
 
@@ -2121,7 +2124,9 @@ export default function FourDirectionTetris() {
               onContextMenu={e => e.preventDefault()}
               style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(148,163,184,0.28)', background:'#1e293b', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation' }}
             >
-              ← {padLabels.left}
+              <span style={{ display:'grid', justifyItems:'center', lineHeight:1 }}>
+                <img src={padArrowSrc} alt="" draggable={false} style={{ width:'18px', height:'18px', transform:'rotate(180deg)', imageRendering:'pixelated', pointerEvents:'none' }} />
+              </span>
             </button>
             <button
               onPointerDown={e => { e.preventDefault(); startHold('center'); }}
@@ -2141,7 +2146,9 @@ export default function FourDirectionTetris() {
               onContextMenu={e => e.preventDefault()}
               style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(148,163,184,0.28)', background:'#1e293b', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation' }}
             >
-              → {padLabels.right}
+              <span style={{ display:'grid', justifyItems:'center', lineHeight:1 }}>
+                <img src={padArrowSrc} alt="" draggable={false} style={{ width:'18px', height:'18px', transform:'rotate(0deg)', imageRendering:'pixelated', pointerEvents:'none' }} />
+              </span>
             </button>
 
             <div />
@@ -2153,7 +2160,9 @@ export default function FourDirectionTetris() {
               onContextMenu={e => e.preventDefault()}
               style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(148,163,184,0.28)', background:'#1e293b', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation' }}
             >
-              ↓ {padLabels.bottom}
+              <span style={{ display:'grid', justifyItems:'center', lineHeight:1 }}>
+                <img src={padArrowSrc} alt="" draggable={false} style={{ width:'18px', height:'18px', transform:'rotate(90deg)', imageRendering:'pixelated', pointerEvents:'none' }} />
+              </span>
             </button>
             <div />
           </div>
