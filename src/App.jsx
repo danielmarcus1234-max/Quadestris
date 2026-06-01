@@ -1276,13 +1276,6 @@ export default function FourDirectionTetris() {
       return;
     }
 
-    if (gameMode === "arcade") {
-      const result = settleOneTick(startBoard);
-      if (result.bonus) addScore(result.bonus, "loose");
-      finishSettle(result.board);
-      return;
-    }
-
     let current = startBoard.map(row => [...row]);
     let totalBonus = 0;
     let ticks = 0;
@@ -1795,26 +1788,30 @@ export default function FourDirectionTetris() {
     }
 
     if (nextPreview.length) {
-      const previewCell = 5;
-      const previewGap = 1;
-      const baseX = SAFE_MIN * CELL + 470;
-      const baseY = SAFE_MIN * CELL - 20;
+      const previewCell = 8;
+      const previewGap = 2;
+      const baseX = (SAFE_MAX + 1) * CELL + 8;
+      const baseY = SAFE_MIN * CELL + 18;
+      const laneWidth = SAFE_MIN * CELL - 14;
 
       ctx.fillStyle = "rgba(203,213,225,0.95)";
-      ctx.font = "bold 10px sans-serif";
-      ctx.textAlign = "left";
-      ctx.fillText("NEXT", baseX, baseY);
+      ctx.font = "bold 11px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("NEXT", baseX + laneWidth / 2, baseY - 8);
 
-      const drawPreview = (piece, originX, originY) => {
+      const drawPreview = (piece, originY) => {
         if (!piece?.shape?.length) return;
+        const pieceWidth = piece.shape[0].length * previewCell + Math.max(0, piece.shape[0].length - 1) * previewGap;
+        const originX = baseX + Math.floor((laneWidth - pieceWidth) / 2);
         if (piece.cellColors) {
           ctx.fillStyle = "rgba(124,58,237,0.95)";
-          ctx.fillRect(originX, originY, 18, 18);
+          const boxSize = 26;
+          const boxX = baseX + Math.floor((laneWidth - boxSize) / 2);
+          ctx.fillRect(boxX, originY, boxSize, boxSize);
           ctx.fillStyle = "#ffffff";
-          ctx.font = "bold 14px sans-serif";
+          ctx.font = "bold 18px sans-serif";
           ctx.textAlign = "center";
-          ctx.fillText("?", originX + 9, originY + 14);
-          ctx.textAlign = "left";
+          ctx.fillText("?", boxX + boxSize / 2, originY + 19);
           return;
         }
         for (let r = 0; r < piece.shape.length; r++) {
@@ -1829,8 +1826,9 @@ export default function FourDirectionTetris() {
         }
       };
 
-      drawPreview(nextPreview[0], baseX, baseY + 4);
-      drawPreview(nextPreview[1], baseX + 28, baseY + 4);
+      drawPreview(nextPreview[0], baseY + 8);
+      drawPreview(nextPreview[1], baseY + 58);
+      ctx.textAlign = "left";
     }
 
     const drawCell = (x, y, color) => {
