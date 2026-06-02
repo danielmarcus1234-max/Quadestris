@@ -344,6 +344,95 @@ function BlockTitle() {
   );
 }
 
+function PixelPadIcon({ type, color = "#e11d48" }) {
+  const icons = {
+    up: [
+      "00100",
+      "01110",
+      "10101",
+      "00100",
+      "00100",
+      "00100",
+      "00000",
+    ],
+    right: [
+      "0001000",
+      "0001100",
+      "1111110",
+      "1111111",
+      "1111110",
+      "0001100",
+      "0001000",
+    ],
+    down: [
+      "00000",
+      "00100",
+      "00100",
+      "00100",
+      "10101",
+      "01110",
+      "00100",
+    ],
+    left: [
+      "0001000",
+      "0011000",
+      "0111111",
+      "1111111",
+      "0111111",
+      "0011000",
+      "0001000",
+    ],
+    rotate: [
+      "0011110",
+      "0110001",
+      "1100000",
+      "1100111",
+      "1100010",
+      "0110010",
+      "0011100",
+    ],
+    drop: [
+      "00100",
+      "00100",
+      "10101",
+      "01110",
+      "00100",
+      "00000",
+      "11111",
+    ],
+  };
+
+  const pattern = icons[type] || icons.right;
+  const columns = pattern[0].length;
+
+  return (
+    <div
+      style={{
+        display:'grid',
+        gridTemplateColumns:`repeat(${columns}, 8px)`,
+        gap:'2px',
+        padding:'9px',
+        border:'2px solid rgba(244,114,182,0.85)',
+        background:'rgba(15,23,42,0.72)',
+        boxShadow:'inset 0 0 0 2px rgba(255,255,255,0.06), 0 0 14px rgba(244,114,182,0.12)',
+      }}
+      aria-hidden="true"
+    >
+      {pattern.flatMap((row, y) => row.split("").map((cell, x) => (
+        <div
+          key={`${type}-${y}-${x}`}
+          style={{
+            width:'8px',
+            height:'8px',
+            borderRadius:'1px',
+            background: cell === "1" ? color : 'transparent',
+          }}
+        />
+      )))}
+    </div>
+  );
+}
+
 export default function FourDirectionTetris() {
   const canvasRef = useRef(null);
   const [board, setBoard] = useState(emptyBoard());
@@ -561,6 +650,7 @@ export default function FourDirectionTetris() {
     setPendingCursedPiece(false);
     setPendingBombPiece(false);
     setNextSideIndex(0);
+    setNextPreview([]);
     setRunHighScoreAchieved(false);
     setHighScoreMessage("");
     setShowRunHighScoreModal(false);
@@ -996,6 +1086,7 @@ export default function FourDirectionTetris() {
         setReverseUntil(0);
         setPendingCursedPiece(false);
         setPendingBombPiece(false);
+        setNextPreview([]);
 
         setTimeout(() => {
           setMultiplierPopup("");
@@ -1029,11 +1120,39 @@ export default function FourDirectionTetris() {
     return side;
   }
 
+  function advanceSpawnSide() {
+    if (randomSpawnOrder) return;
+    const order = ["top", "right", "bottom", "left"];
+    const reverseFallOrder = gameMode === "arcade" && reverseUntil > Date.now();
+    const step = reverseFallOrder ? -1 : 1;
+    setNextSideIndex(prev => (prev + step + order.length) % order.length);
+  }
+
   function previewPieceForSide(side, preferCursed = false, forceBomb = false) {
-    if (forceBomb) return { ...randomPiece(side), isBomb: true };
-    if (preferCursed) return randomCursedPiece(side);
+    if (forceBomb) return { ...randomPiece(side), isBomb: true, pendingBombPreview: true };
+    if (preferCursed) return { ...randomCursedPiece(side), pendingCursedPreview: true };
     if (shouldUseCursedPool()) return randomCursedPiece(side);
     return randomPiece(side);
+  }
+
+  function nextQueuedSideAfter(side) {
+    if (randomSpawnOrder) return randomSide();
+    const order = ["top", "right", "bottom", "left"];
+    const reverseFallOrder = gameMode === "arcade" && reverseUntil > Date.now();
+    const step = reverseFallOrder ? -1 : 1;
+    const index = order.indexOf(side);
+    return order[(index + step + order.length) % order.length];
+  }
+
+  function fillPreviewQueue(seed = [], firstSide = null) {
+    const queue = [...seed];
+    while (queue.length < 2) {
+      const side = queue.length
+        ? nextQueuedSideAfter(queue[queue.length - 1].side)
+        : (firstSide || (randomSpawnOrder ? randomSide() : ["top", "right", "bottom", "left"][nextSideIndex]));
+      queue.push(previewPieceForSide(side, false, false));
+    }
+    return queue;
   }
 
   function buildNextPreview() {
@@ -1086,6 +1205,21 @@ export default function FourDirectionTetris() {
     return randomPiece(side);
   }
 
+  function consumeQueuedPiece() {
+    if (!nextPreview.length) return null;
+    const [queued] = nextPreview;
+    setNextPreview(prev => fillPreviewQueue(prev.slice(1)));
+    if (queued.pendingBombPreview) setPendingBombPiece(false);
+    if (queued.pendingCursedPreview) setPendingCursedPiece(false);
+    advanceSpawnSide();
+    return {
+      ...queued,
+      id: crypto.randomUUID(),
+      pendingBombPreview: undefined,
+      pendingCursedPreview: undefined
+    };
+  }
+
   function triggerBombPieceLock(startBoard, bombPiece) {
     const merged = mergeWithCellColors(startBoard, bombPiece);
     const bombKeys = new Set(
@@ -1133,7 +1267,7 @@ export default function FourDirectionTetris() {
   }
 
   function spawn(nextBoard) {
-    const p = nextSpawnPiece();
+    const p = consumeQueuedPiece() || nextSpawnPiece();
     if (overlapsBoard(nextBoard, p)) {
       setFailReason("Spawn blocked");
       setGameOver(true);
@@ -1146,6 +1280,31 @@ export default function FourDirectionTetris() {
   }
 
   function spawnDual(nextBoard) {
+    if (nextPreview.length >= 2) {
+      const queued = nextPreview.slice(0, 2).map(p => ({
+        ...p,
+        id: crypto.randomUUID(),
+        pendingBombPreview: undefined,
+        pendingCursedPreview: undefined
+      }));
+      const overlapEachOther = pieceCells(queued[0]).some(a =>
+        pieceCells(queued[1]).some(b => a.x === b.x && a.y === b.y)
+      );
+
+      if (
+        !overlapsBoard(nextBoard, queued[0]) && !breachesBarrier(queued[0]) &&
+        !overlapsBoard(nextBoard, queued[1]) && !breachesBarrier(queued[1]) &&
+        !overlapEachOther
+      ) {
+        setNextPreview(prev => fillPreviewQueue(prev.slice(2), nextQueuedSideAfter(prev[0]?.side || nextPreview[0].side)));
+        if (nextPreview[0].pendingBombPreview || nextPreview[1].pendingBombPreview) setPendingBombPiece(false);
+        if (nextPreview[0].pendingCursedPreview || nextPreview[1].pendingCursedPreview) setPendingCursedPiece(false);
+        advanceSpawnSide();
+        setPieces(queued);
+        return true;
+      }
+    }
+
     const scheduledSide = getNextSpawnSide(false);
     const reverseFallOrder = gameMode === "arcade" && reverseUntil > Date.now();
     const step = reverseFallOrder ? -1 : 1;
@@ -1194,6 +1353,7 @@ export default function FourDirectionTetris() {
     setPendingCursedPiece(false);
     setPendingBombPiece(false);
     setNextSideIndex(0);
+    setNextPreview([]);
     setRunHighScoreAchieved(false);
     setHighScoreMessage("");
     setShowRunHighScoreModal(false);
@@ -1673,8 +1833,16 @@ export default function FourDirectionTetris() {
       setNextPreview([]);
       return;
     }
-    setNextPreview(buildNextPreview());
-  }, [screen, gameMode, randomSpawnOrder, nextSideIndex, reverseUntil, pendingDualSpawn, pendingCursedPiece, pendingBombPiece]);
+    if (
+      nextPreview.length === 0 ||
+      pendingDualSpawn ||
+      pendingCursedPiece ||
+      pendingBombPiece ||
+      reverseUntil > Date.now()
+    ) {
+      setNextPreview(buildNextPreview());
+    }
+  }, [screen, gameMode, randomSpawnOrder, reverseUntil, pendingDualSpawn, pendingCursedPiece, pendingBombPiece, nextPreview.length]);
 
   useEffect(() => {
     if (gameOver) maybeFinalizeRunScore();
@@ -1828,6 +1996,14 @@ export default function FourDirectionTetris() {
 
       drawPreview(nextPreview[0], baseY + 8);
       drawPreview(nextPreview[1], baseY + 58);
+      ctx.textAlign = "left";
+    }
+
+    if (screen !== "title") {
+      ctx.fillStyle = "rgba(148,163,184,0.95)";
+      ctx.font = "bold 11px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(gameMode, canvas.width / 2, (SAFE_MAX + 1) * CELL + 22);
       ctx.textAlign = "left";
     }
 
@@ -1990,7 +2166,26 @@ export default function FourDirectionTetris() {
   }, [board, pieces, gameOver, failReason, animating, flashKeys, screen, countdown, powerUps, multiplierPopup, destroyedPiece, missileEffect, runHighScoreAchieved, highScoreMessage, score, level, gameMode, hasExtraLife, scoreMultiplier, scoreFlash, highScores, reverseUntil, pendingDualSpawn, pendingCursedPiece, pendingBombPiece, nextPreview]);
 
   const padLabels = getPadLabels();
-  const padArrowSrc = "/UI/arrow orientation right.png";
+  const pixelPadButtonStyle = {
+    height:'92px',
+    borderRadius:'0',
+    border:'none',
+    background:'transparent',
+    cursor:'pointer',
+    userSelect:'none',
+    WebkitUserSelect:'none',
+    WebkitTouchCallout:'none',
+    touchAction:'manipulation',
+    padding:0,
+    fontSize:0,
+    display:'grid',
+    placeItems:'center'
+  };
+  const iconForPad = position => {
+    if (padLabels[position] === "ROTATE") return "rotate";
+    return position === "top" ? "up" : position === "bottom" ? "down" : position;
+  };
+  const colorForPad = position => padLabels[position] === "ROTATE" ? "#fbbf24" : "#f43f5e";
 
   return (
     <div style={{ minHeight:'100vh', color:'white', display:'flex', alignItems:'center', justifyContent:'center', padding:'8px', width:'100%', maxWidth:'100vw', overflowX:'hidden', overflowY:'auto', background:'radial-gradient(circle at top, #1e293b 0%, #0f172a 42%, #020617 100%)', fontFamily:'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif', boxSizing:'border-box', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none' }}>
@@ -2108,11 +2303,9 @@ export default function FourDirectionTetris() {
               onPointerLeave={stopHold}
               onPointerCancel={stopHold}
               onContextMenu={e => e.preventDefault()}
-              style={{ height:'92px', borderRadius:'12px', border:'none', background:'transparent', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation', padding:0, display:'grid', placeItems:'center' }}
+              style={pixelPadButtonStyle}
             >
-              <span style={{ display:'grid', justifyItems:'center', lineHeight:1 }}>
-                <img src={padArrowSrc} alt="" draggable={false} style={{ width:'84px', height:'84px', transform:'rotate(-90deg)', imageRendering:'pixelated', pointerEvents:'none' }} />
-              </span>
+              <PixelPadIcon type={iconForPad("top")} color={colorForPad("top")} />
             </button>
             <div />
 
@@ -2122,11 +2315,9 @@ export default function FourDirectionTetris() {
               onPointerLeave={stopHold}
               onPointerCancel={stopHold}
               onContextMenu={e => e.preventDefault()}
-              style={{ height:'92px', borderRadius:'12px', border:'none', background:'transparent', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation', padding:0, display:'grid', placeItems:'center' }}
+              style={pixelPadButtonStyle}
             >
-              <span style={{ display:'grid', justifyItems:'center', lineHeight:1 }}>
-                <img src={padArrowSrc} alt="" draggable={false} style={{ width:'84px', height:'84px', transform:'rotate(180deg)', imageRendering:'pixelated', pointerEvents:'none' }} />
-              </span>
+              <PixelPadIcon type={iconForPad("left")} color={colorForPad("left")} />
             </button>
             <button
               onPointerDown={e => { e.preventDefault(); startHold('center'); }}
@@ -2134,9 +2325,9 @@ export default function FourDirectionTetris() {
               onPointerLeave={stopHold}
               onPointerCancel={stopHold}
               onContextMenu={e => e.preventDefault()}
-              style={{ height:'58px', borderRadius:'12px', border:'1px solid rgba(250,204,21,0.45)', background:'#854d0e', color:'white', fontWeight:900, fontSize:'12px', cursor:'pointer', boxShadow:'0 0 18px rgba(250,204,21,0.16)', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation' }}
+              style={pixelPadButtonStyle}
             >
-              ⬇ {padLabels.center}
+              <PixelPadIcon type="drop" color="#fbbf24" />
             </button>
             <button
               onPointerDown={e => { e.preventDefault(); startHold('right'); }}
@@ -2144,11 +2335,9 @@ export default function FourDirectionTetris() {
               onPointerLeave={stopHold}
               onPointerCancel={stopHold}
               onContextMenu={e => e.preventDefault()}
-              style={{ height:'92px', borderRadius:'12px', border:'none', background:'transparent', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation', padding:0, display:'grid', placeItems:'center' }}
+              style={pixelPadButtonStyle}
             >
-              <span style={{ display:'grid', justifyItems:'center', lineHeight:1 }}>
-                <img src={padArrowSrc} alt="" draggable={false} style={{ width:'84px', height:'84px', transform:'rotate(0deg)', imageRendering:'pixelated', pointerEvents:'none' }} />
-              </span>
+              <PixelPadIcon type={iconForPad("right")} color={colorForPad("right")} />
             </button>
 
             <div />
@@ -2158,17 +2347,11 @@ export default function FourDirectionTetris() {
               onPointerLeave={stopHold}
               onPointerCancel={stopHold}
               onContextMenu={e => e.preventDefault()}
-              style={{ height:'92px', borderRadius:'12px', border:'none', background:'transparent', color:'white', fontWeight:800, fontSize:'11px', cursor:'pointer', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation', padding:0, display:'grid', placeItems:'center' }}
+              style={pixelPadButtonStyle}
             >
-              <span style={{ display:'grid', justifyItems:'center', lineHeight:1 }}>
-                <img src={padArrowSrc} alt="" draggable={false} style={{ width:'84px', height:'84px', transform:'rotate(90deg)', imageRendering:'pixelated', pointerEvents:'none' }} />
-              </span>
+              <PixelPadIcon type={iconForPad("bottom")} color={colorForPad("bottom")} />
             </button>
             <div />
-          </div>
-
-          <div style={{ textAlign:'center', fontSize:'13px', color:'#94a3b8', textTransform:'lowercase', letterSpacing:'0.04em' }}>
-            {gameMode}
           </div>
 
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:'8px', fontSize:'13px', color:'#cbd5e1', background:'rgba(15,23,42,0.55)', border:'1px solid rgba(148,163,184,0.16)', borderRadius:'16px', padding:'12px', marginTop:'4px', width:'100%' }}>
