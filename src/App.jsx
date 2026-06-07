@@ -519,6 +519,15 @@ function PixelIconButton({ type, onClick, color = "#ffffff", ariaLabel }) {
       "0001000",
       "0011100",
     ],
+    fullscreen: [
+      "1100011",
+      "1000001",
+      "0000000",
+      "0000000",
+      "0000000",
+      "1000001",
+      "1100011",
+    ],
   };
   const pattern = icons[type] || icons.cog;
   const columns = pattern[0].length;
@@ -612,6 +621,7 @@ export default function FourDirectionTetris() {
   const [shareCopied, setShareCopied] = useState(false);
   const [runHighScoreDismissed, setRunHighScoreDismissed] = useState(false);
   const [sessionRunCounts, setSessionRunCounts] = useState({ classic: 0, arcade: 0 });
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const holdDelayRef = useRef(null);
   const holdIntervalRef = useRef(null);
   const runScoreSavedRef = useRef(false);
@@ -630,12 +640,12 @@ export default function FourDirectionTetris() {
   const lastClearSfxAtRef = useRef(0);
 
   function levelForScore(points) {
-    if (points >= 36500) return 9;
-    if (points >= 28500) return 8;
-    if (points >= 21500) return 7;
-    if (points >= 15500) return 6;
-    if (points >= 10500) return 5;
-    if (points >= 6500) return 4;
+    if (points >= 82000) return 9;
+    if (points >= 62000) return 8;
+    if (points >= 45500) return 7;
+    if (points >= 32000) return 6;
+    if (points >= 20500) return 5;
+    if (points >= 9000) return 4;
     if (points >= 3500) return 3;
     if (points >= 500) return 2;
     return 1;
@@ -742,6 +752,17 @@ export default function FourDirectionTetris() {
     initSfx(highScoreSfxRef, "/audio/high score.wav", 0.86);
   }, []);
 
+  useEffect(() => {
+    const syncFullscreen = () => setIsFullscreen(Boolean(document.fullscreenElement || document.webkitFullscreenElement));
+    document.addEventListener("fullscreenchange", syncFullscreen);
+    document.addEventListener("webkitfullscreenchange", syncFullscreen);
+    syncFullscreen();
+    return () => {
+      document.removeEventListener("fullscreenchange", syncFullscreen);
+      document.removeEventListener("webkitfullscreenchange", syncFullscreen);
+    };
+  }, []);
+
   function playSfx(audioRef) {
     if (sfxMuted || sfxVolume <= 0) return;
     const audio = audioRef.current;
@@ -761,6 +782,32 @@ export default function FourDirectionTetris() {
     if (now - lastClearSfxAtRef.current < 220) return;
     lastClearSfxAtRef.current = now;
     playSfx(clearSfxRef);
+  }
+
+  async function toggleFullscreen() {
+    try {
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        const exit =
+          document.exitFullscreen ||
+          document.webkitExitFullscreen ||
+          document.msExitFullscreen;
+        await exit?.call(document);
+        return;
+      }
+
+      const root = document.documentElement;
+      const request =
+        root.requestFullscreen ||
+        root.webkitRequestFullscreen ||
+        root.msRequestFullscreen;
+
+      if (request) {
+        await request.call(root);
+        return;
+      }
+    } catch {
+      // Mobile browsers can reject fullscreen unless triggered by a direct tap.
+    }
   }
 
   function resetToTitle() {
@@ -2323,7 +2370,7 @@ export default function FourDirectionTetris() {
   const colorForPad = position => padLabels[position] === "ROTATE" ? "#fbbf24" : "#f43f5e";
 
   return (
-    <div style={{ minHeight:'100vh', color:'white', display:'flex', alignItems:'center', justifyContent:'center', padding:'8px', width:'100%', maxWidth:'100vw', overflowX:'hidden', overflowY:'auto', background:'radial-gradient(circle at top, #1e293b 0%, #0f172a 42%, #020617 100%)', fontFamily:'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif', boxSizing:'border-box', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none' }}>
+    <div style={{ minHeight:isFullscreen ? '100dvh' : '100vh', color:'white', display:'flex', alignItems:'center', justifyContent:'center', padding:isFullscreen ? '2px' : '8px', width:'100%', maxWidth:'100vw', overflowX:'hidden', overflowY:'auto', background:'radial-gradient(circle at top, #1e293b 0%, #0f172a 42%, #020617 100%)', fontFamily:'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif', boxSizing:'border-box', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none' }}>
       <div style={{ margin:'0 auto', width:'100%', maxWidth:'920px', background:'linear-gradient(180deg, rgba(15,23,42,0.96), rgba(2,6,23,0.98))', border:'1px solid rgba(148,163,184,0.25)', borderRadius:'24px', padding:'12px', boxShadow:'0 30px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06)', boxSizing:'border-box', display:'grid', justifyItems:'center' }}>
         <div style={{ display:'grid', gap:'14px', position:'relative', justifyItems:'center' }}>
           <div style={{ textAlign:'center', minHeight:'52px', paddingTop:'0', display:'grid', alignContent:'center', justifyItems:'center', width:'100%' }}>
@@ -2340,6 +2387,7 @@ export default function FourDirectionTetris() {
                 <PixelIconButton type="play" onClick={startGame} color="#fbbf24" ariaLabel="Play" />
                 <PixelIconButton type="cog" onClick={() => setShowSettings(true)} ariaLabel="Settings" />
                 <PixelIconButton type="trophy" onClick={() => setShowHighScores(true)} color="#fbbf24" ariaLabel="High Scores" />
+                <PixelIconButton type="fullscreen" onClick={toggleFullscreen} color={isFullscreen ? "#22c55e" : "#ffffff"} ariaLabel={isFullscreen ? "Exit fullscreen" : "Fill screen"} />
               </div>
 
               <div style={{ display:'grid', gap:'8px', justifyItems:'center' }}>
