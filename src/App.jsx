@@ -356,13 +356,13 @@ function PixelPadIcon({ type, color = "#e11d48" }) {
       "00000",
     ],
     right: [
-      "0001000",
-      "0001100",
-      "1111110",
-      "1111111",
-      "1111110",
-      "0001100",
-      "0001000",
+      "00000",
+      "00100",
+      "00010",
+      "11111",
+      "00010",
+      "00100",
+      "00000",
     ],
     down: [
       "00000",
@@ -374,22 +374,22 @@ function PixelPadIcon({ type, color = "#e11d48" }) {
       "00100",
     ],
     left: [
-      "0001000",
-      "0011000",
-      "0111111",
-      "1111111",
-      "0111111",
-      "0011000",
-      "0001000",
+      "00000",
+      "00100",
+      "01000",
+      "11111",
+      "01000",
+      "00100",
+      "00000",
     ],
     rotate: [
-      "0011110",
+      "0011100",
       "0110010",
-      "1100000",
+      "1100001",
       "1000111",
-      "1000011",
-      "1100010",
-      "0111100",
+      "1000010",
+      "1100100",
+      "0111000",
     ],
     drop: [
       "00100",
@@ -485,6 +485,64 @@ function PixelTextButton({ label, onClick, color = "#f43f5e" }) {
             ))}
           </div>
         ))}
+      </div>
+    </button>
+  );
+}
+
+function PixelIconButton({ type, onClick, color = "#ffffff", ariaLabel }) {
+  const icons = {
+    cog: [
+      "0010100",
+      "0111110",
+      "1101011",
+      "0110110",
+      "1101011",
+      "0111110",
+      "0010100",
+    ],
+  };
+  const pattern = icons[type] || icons.cog;
+  const columns = pattern[0].length;
+
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        border:'3px solid rgba(244,114,182,0.9)',
+        background:'rgba(15,23,42,0.72)',
+        width:'74px',
+        height:'74px',
+        display:'grid',
+        placeContent:'center',
+        cursor:'pointer',
+        userSelect:'none',
+        WebkitUserSelect:'none',
+        WebkitTouchCallout:'none',
+        touchAction:'manipulation',
+        boxShadow:'0 0 14px rgba(244,114,182,0.12)',
+      }}
+      aria-label={ariaLabel}
+    >
+      <div
+        style={{
+          display:'grid',
+          gridTemplateColumns:`repeat(${columns}, 6px)`,
+          gap:'2px',
+        }}
+        aria-hidden="true"
+      >
+        {pattern.flatMap((row, y) => row.split("").map((cell, x) => (
+          <div
+            key={`${type}-${y}-${x}`}
+            style={{
+              width:'6px',
+              height:'6px',
+              borderRadius:'1px',
+              background: cell === "1" ? color : 'transparent',
+            }}
+          />
+        )))}
       </div>
     </button>
   );
@@ -2317,7 +2375,7 @@ export default function FourDirectionTetris() {
                   {[1,2,3,4,5,6,7,8,9].map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
               </div>
-              <PixelTextButton label="Settings" onClick={() => setShowSettings(true)} color="#f43f5e" />
+              <PixelIconButton type="cog" onClick={() => setShowSettings(true)} ariaLabel="Settings" />
               <button onClick={() => setShowHighScores(true)} style={{ padding:'10px 18px', borderRadius:'12px', background:'#334155', color:'white', border:'none', cursor:'pointer', fontWeight:700 }}>High Scores</button>
               <PixelTextButton label="Play" onClick={startGame} color="#fbbf24" />
             </div>
