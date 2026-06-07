@@ -1267,10 +1267,15 @@ export default function FourDirectionTetris() {
   }
 
   function previewPieceForSide(side, preferCursed = false, forceBomb = false) {
-    if (forceBomb) return { ...randomPiece(side), isBomb: true, pendingBombPreview: true };
-    if (preferCursed) return { ...randomCursedPiece(side), pendingCursedPreview: true };
-    if (shouldUseCursedPool()) return randomCursedPiece(side);
-    return randomPiece(side);
+    const piece = preferCursed
+      ? randomCursedPiece(side)
+      : (shouldUseCursedPool() ? randomCursedPiece(side) : randomPiece(side));
+    return {
+      ...piece,
+      isBomb: forceBomb || piece.isBomb,
+      pendingBombPreview: forceBomb || undefined,
+      pendingCursedPreview: preferCursed || undefined
+    };
   }
 
   function nextQueuedSideAfter(side) {
@@ -1329,13 +1334,14 @@ export default function FourDirectionTetris() {
 
   function nextSpawnPiece(forcedSide = null) {
     const side = forcedSide || getNextSpawnSide();
-    if (pendingBombPiece) {
-      setPendingBombPiece(false);
-      return { ...randomPiece(side), isBomb: true };
-    }
-    if (pendingCursedPiece) {
+    if (pendingCursedPiece || pendingBombPiece) {
+      const next = pendingCursedPiece
+        ? randomCursedPiece(side)
+        : randomPiece(side);
+      if (pendingBombPiece) setPendingBombPiece(false);
       setPendingCursedPiece(false);
-      return randomCursedPiece(side);
+      setNextPreview([]);
+      return { ...next, isBomb: pendingBombPiece || next.isBomb };
     }
     if (shouldUseCursedPool()) {
       return randomCursedPiece(side);
@@ -1428,10 +1434,12 @@ export default function FourDirectionTetris() {
       : ["left", "right"];
     const fallbackPair = primaryPair[0] === "top" ? ["left", "right"] : ["top", "bottom"];
     const useCursedFirst = pendingCursedPiece || shouldUseCursedPool();
+    const useBombFirst = pendingBombPiece;
 
     for (const [firstSide, secondSide] of [primaryPair, fallbackPair]) {
       for (let attempt = 0; attempt < 80; attempt++) {
-        const first = useCursedFirst ? randomCursedPiece(firstSide) : randomPiece(firstSide);
+        const firstBase = useCursedFirst ? randomCursedPiece(firstSide) : randomPiece(firstSide);
+        const first = useBombFirst ? { ...firstBase, isBomb: true } : firstBase;
         const second = shouldUseCursedPool()
           ? randomCursedPiece(secondSide)
           : randomPiece(secondSide);
@@ -1448,6 +1456,7 @@ export default function FourDirectionTetris() {
         }
 
         if (useCursedFirst) setPendingCursedPiece(false);
+        if (useBombFirst) setPendingBombPiece(false);
         if (!randomSpawnOrder) setNextSideIndex(prev => (prev + step + 4) % 4);
         setNextPreview([]);
         setPieces([first, second]);
