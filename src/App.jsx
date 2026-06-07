@@ -414,9 +414,9 @@ function PixelPadIcon({ type, color = "#e11d48" }) {
         placeContent:'center',
         gridTemplateColumns:`repeat(${columns}, 8px)`,
         gap:'2px',
-        border:'3px solid rgba(244,114,182,0.9)',
+        border:'3px solid transparent',
         background:'rgba(15,23,42,0.72)',
-        boxShadow:'0 0 14px rgba(244,114,182,0.12)',
+        boxShadow:'none',
       }}
       aria-hidden="true"
     >
@@ -453,7 +453,7 @@ function PixelTextButton({ label, onClick, color = "#f43f5e" }) {
     <button
       onClick={onClick}
       style={{
-        border:'3px solid rgba(244,114,182,0.9)',
+        border:'3px solid transparent',
         background:'rgba(15,23,42,0.72)',
         padding:'10px 12px',
         cursor:'pointer',
@@ -461,7 +461,7 @@ function PixelTextButton({ label, onClick, color = "#f43f5e" }) {
         WebkitUserSelect:'none',
         WebkitTouchCallout:'none',
         touchAction:'manipulation',
-        boxShadow:'0 0 14px rgba(244,114,182,0.12)',
+        boxShadow:'none',
       }}
       aria-label={label}
     >
@@ -492,14 +492,23 @@ function PixelTextButton({ label, onClick, color = "#f43f5e" }) {
 
 function PixelIconButton({ type, onClick, color = "#ffffff", ariaLabel }) {
   const icons = {
+    play: [
+      "1000000",
+      "1110000",
+      "1111100",
+      "1111111",
+      "1111100",
+      "1110000",
+      "1000000",
+    ],
     cog: [
-      "0011100",
-      "0110110",
       "1100011",
       "1001001",
-      "1100011",
+      "0011100",
       "0110110",
       "0011100",
+      "1001001",
+      "1100011",
     ],
   };
   const pattern = icons[type] || icons.cog;
@@ -509,7 +518,7 @@ function PixelIconButton({ type, onClick, color = "#ffffff", ariaLabel }) {
     <button
       onClick={onClick}
       style={{
-        border:'3px solid rgba(244,114,182,0.9)',
+        border:'3px solid transparent',
         background:'rgba(15,23,42,0.72)',
         width:'74px',
         height:'74px',
@@ -520,7 +529,7 @@ function PixelIconButton({ type, onClick, color = "#ffffff", ariaLabel }) {
         WebkitUserSelect:'none',
         WebkitTouchCallout:'none',
         touchAction:'manipulation',
-        boxShadow:'0 0 14px rgba(244,114,182,0.12)',
+        boxShadow:'none',
       }}
       aria-label={ariaLabel}
     >
@@ -2316,11 +2325,15 @@ export default function FourDirectionTetris() {
                 <BlockTitle />
                 <div style={{ color:'#94a3b8', fontSize:'12px', marginTop:'6px' }}>by Daniel Marcus</div>
               </div>
-              <div style={{ color:'#cbd5e1', fontSize:'14px', maxWidth:'390px', padding:'0 18px', lineHeight:1.55 }}>
+              <div style={{ display:'flex', gap:'18px', alignItems:'center', justifyContent:'center', fontSize:0 }}>
+                <PixelIconButton type="play" onClick={startGame} color="#fbbf24" ariaLabel="Play" />
+                <PixelIconButton type="cog" onClick={() => setShowSettings(true)} ariaLabel="Settings" />
                 Build from the centre. Clear 4×4 blocks. Survive the accelerating fall from four directions.
               </div>
 
-              <div style={{ display:'flex', gap:'10px' }}>
+              <div style={{ display:'grid', gap:'8px', justifyItems:'center' }}>
+                <div style={{ color:'#94a3b8', fontSize:'11px', letterSpacing:'0.14em', textTransform:'uppercase' }}>Game modes</div>
+                <div style={{ display:'flex', gap:'10px' }}>
                 <button
                   onClick={() => setGameMode('classic')}
                   style={{
@@ -2364,9 +2377,10 @@ export default function FourDirectionTetris() {
                 >
                   Cursed
                 </button>
+                </div>
               </div>
-              <div style={{ display:'flex', alignItems:'center', gap:'12px', background:'rgba(30,41,59,0.65)', border:'1px solid rgba(148,163,184,0.18)', borderRadius:'14px', padding:'10px 14px' }}>
-                <span style={{ fontSize:'13px', color:'#94a3b8' }}>Start level</span>
+              <div style={{ display:'grid', gap:'8px', justifyItems:'center' }}>
+                <div style={{ color:'#94a3b8', fontSize:'11px', letterSpacing:'0.14em', textTransform:'uppercase' }}>Start level</div>
                 <select
                   value={selectedLevel}
                   onChange={e => setSelectedLevel(Number(e.target.value))}
@@ -2375,9 +2389,7 @@ export default function FourDirectionTetris() {
                   {[1,2,3,4,5,6,7,8,9].map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
               </div>
-              <PixelIconButton type="cog" onClick={() => setShowSettings(true)} ariaLabel="Settings" />
               <button onClick={() => setShowHighScores(true)} style={{ padding:'10px 18px', borderRadius:'12px', background:'#334155', color:'white', border:'none', cursor:'pointer', fontWeight:700 }}>High Scores</button>
-              <PixelTextButton label="Play" onClick={startGame} color="#fbbf24" />
             </div>
           )}
 
