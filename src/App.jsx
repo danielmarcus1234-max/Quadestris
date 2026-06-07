@@ -384,12 +384,12 @@ function PixelPadIcon({ type, color = "#e11d48" }) {
     ],
     rotate: [
       "0011110",
-      "0110001",
-      "1100000",
-      "1100111",
-      "1100010",
       "0110010",
-      "0011100",
+      "1100000",
+      "1000111",
+      "1000011",
+      "1100010",
+      "0111100",
     ],
     drop: [
       "00100",
@@ -408,13 +408,15 @@ function PixelPadIcon({ type, color = "#e11d48" }) {
   return (
     <div
       style={{
+        width:'74px',
+        height:'74px',
         display:'grid',
+        placeContent:'center',
         gridTemplateColumns:`repeat(${columns}, 8px)`,
         gap:'2px',
-        padding:'9px',
-        border:'2px solid rgba(244,114,182,0.85)',
+        border:'3px solid rgba(244,114,182,0.9)',
         background:'rgba(15,23,42,0.72)',
-        boxShadow:'inset 0 0 0 2px rgba(255,255,255,0.06), 0 0 14px rgba(244,114,182,0.12)',
+        boxShadow:'0 0 14px rgba(244,114,182,0.12)',
       }}
       aria-hidden="true"
     >
@@ -430,6 +432,61 @@ function PixelPadIcon({ type, color = "#e11d48" }) {
         />
       )))}
     </div>
+  );
+}
+
+function PixelTextButton({ label, onClick, color = "#f43f5e" }) {
+  const letters = {
+    A: ["111", "101", "111", "101", "101"],
+    E: ["111", "100", "111", "100", "111"],
+    G: ["111", "100", "101", "101", "111"],
+    I: ["111", "010", "010", "010", "111"],
+    L: ["100", "100", "100", "100", "111"],
+    N: ["101", "111", "111", "111", "101"],
+    P: ["110", "101", "110", "100", "100"],
+    S: ["111", "100", "111", "001", "111"],
+    T: ["111", "010", "010", "010", "010"],
+    Y: ["101", "101", "010", "010", "010"],
+  };
+
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        border:'3px solid rgba(244,114,182,0.9)',
+        background:'rgba(15,23,42,0.72)',
+        padding:'10px 12px',
+        cursor:'pointer',
+        userSelect:'none',
+        WebkitUserSelect:'none',
+        WebkitTouchCallout:'none',
+        touchAction:'manipulation',
+        boxShadow:'0 0 14px rgba(244,114,182,0.12)',
+      }}
+      aria-label={label}
+    >
+      <div style={{ display:'flex', gap:'5px', justifyContent:'center' }} aria-hidden="true">
+        {label.toUpperCase().split("").map((letter, letterIndex) => (
+          <div key={`${letter}-${letterIndex}`} style={{ display:'grid', gap:'2px' }}>
+            {(letters[letter] || letters.P).map((row, y) => (
+              <div key={y} style={{ display:'flex', gap:'2px' }}>
+                {row.split("").map((cell, x) => (
+                  <div
+                    key={x}
+                    style={{
+                      width:'6px',
+                      height:'6px',
+                      borderRadius:'1px',
+                      background: cell === "1" ? color : 'transparent'
+                    }}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </button>
   );
 }
 
@@ -2260,9 +2317,9 @@ export default function FourDirectionTetris() {
                   {[1,2,3,4,5,6,7,8,9].map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
               </div>
-              <button onClick={() => setShowSettings(true)} style={{ padding:'10px 18px', borderRadius:'12px', background:'#1e293b', color:'white', border:'1px solid rgba(148,163,184,0.35)', cursor:'pointer', fontWeight:700 }}>Settings</button>
+              <PixelTextButton label="Settings" onClick={() => setShowSettings(true)} color="#f43f5e" />
               <button onClick={() => setShowHighScores(true)} style={{ padding:'10px 18px', borderRadius:'12px', background:'#334155', color:'white', border:'none', cursor:'pointer', fontWeight:700 }}>High Scores</button>
-              <button onClick={startGame} style={{ padding:'12px 32px', borderRadius:'12px', background:'#2563eb', color:'white', border:'none', cursor:'pointer', fontWeight:'bold' }}>Play</button>
+              <PixelTextButton label="Play" onClick={startGame} color="#fbbf24" />
             </div>
           )}
 
