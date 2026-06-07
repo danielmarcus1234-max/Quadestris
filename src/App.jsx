@@ -1044,8 +1044,10 @@ export default function FourDirectionTetris() {
     if (multiplierPickups.length || dualCollected) {
       setScoreMultiplier(prev => {
         const next = Math.min(MAX_SCORE_MULTIPLIER, prev * strongest * multiplierBonus);
-        setMultiplierPopup(`x${next}`);
-        setTimeout(() => setMultiplierPopup(""), 900);
+        if (!dualCollected) {
+          setMultiplierPopup(`x${next}`);
+          setTimeout(() => setMultiplierPopup(""), 900);
+        }
         return next;
       });
     }
@@ -1062,6 +1064,7 @@ export default function FourDirectionTetris() {
 
     if (dualCollected) {
       setPendingDualSpawn(true);
+      setNextPreview([]);
       setMultiplierPopup("DUAL");
       setTimeout(() => setMultiplierPopup(""), 900);
     }
@@ -1080,12 +1083,14 @@ export default function FourDirectionTetris() {
 
     if (cursedCollected) {
       setPendingCursedPiece(true);
+      setNextPreview([]);
       setMultiplierPopup("CURSED NEXT");
       setTimeout(() => setMultiplierPopup(""), 1000);
     }
 
     if (bombCollected) {
       setPendingBombPiece(true);
+      setNextPreview([]);
       setMultiplierPopup("BOMB NEXT");
       setTimeout(() => setMultiplierPopup(""), 900);
     }
@@ -1400,7 +1405,9 @@ export default function FourDirectionTetris() {
   }
 
   function spawn(nextBoard) {
-    const p = consumeQueuedPiece() || nextSpawnPiece();
+    const p = pendingBombPiece || pendingCursedPiece
+      ? nextSpawnPiece()
+      : (consumeQueuedPiece() || nextSpawnPiece());
     if (overlapsBoard(nextBoard, p)) {
       setFailReason("Spawn blocked");
       setGameOver(true);
@@ -1413,57 +1420,43 @@ export default function FourDirectionTetris() {
   }
 
   function spawnDual(nextBoard) {
-    if (nextPreview.length >= 2) {
-      const queued = nextPreview.slice(0, 2).map(p => ({
-        ...p,
-        id: crypto.randomUUID(),
-        pendingBombPreview: undefined,
-        pendingCursedPreview: undefined
-      }));
-      const overlapEachOther = pieceCells(queued[0]).some(a =>
-        pieceCells(queued[1]).some(b => a.x === b.x && a.y === b.y)
-      );
+    const scheduledSide = getNextSpawnSide(false);
+    const reverseFallOrder = gameMode === "arcade" && reverseUntil > Date.now();
+    const step = reverseFallOrder ? -1 : 1;
+    const primaryPair = scheduledSide === "top" || scheduledSide === "bottom"
+      ? ["top", "bottom"]
+      : ["left", "right"];
+    const fallbackPair = primaryPair[0] === "top" ? ["left", "right"] : ["top", "bottom"];
+    const useCursedFirst = pendingCursedPiece || shouldUseCursedPool();
 
-      if (
-        !overlapsBoard(nextBoard, queued[0]) && !breachesBarrier(queued[0]) &&
-        !overlapsBoard(nextBoard, queued[1]) && !breachesBarrier(queued[1]) &&
-        !overlapEachOther
-      ) {
-        setNextPreview(prev => fillPreviewQueue(prev.slice(2), nextQueuedSideAfter(prev[0]?.side || nextPreview[0].side)));
-        if (nextPreview[0].pendingBombPreview || nextPreview[1].pendingBombPreview) setPendingBombPiece(false);
-        if (nextPreview[0].pendingCursedPreview || nextPreview[1].pendingCursedPreview) setPendingCursedPiece(false);
-        advanceSpawnSide();
-        setPieces(queued);
+    for (const [firstSide, secondSide] of [primaryPair, fallbackPair]) {
+      for (let attempt = 0; attempt < 80; attempt++) {
+        const first = useCursedFirst ? randomCursedPiece(firstSide) : randomPiece(firstSide);
+        const second = shouldUseCursedPool()
+          ? randomCursedPiece(secondSide)
+          : randomPiece(secondSide);
+        const overlapEachOther = pieceCells(first).some(a =>
+          pieceCells(second).some(b => a.x === b.x && a.y === b.y)
+        );
+
+        if (
+          overlapsBoard(nextBoard, first) || breachesBarrier(first) ||
+          overlapsBoard(nextBoard, second) || breachesBarrier(second) ||
+          overlapEachOther
+        ) {
+          continue;
+        }
+
+        if (useCursedFirst) setPendingCursedPiece(false);
+        if (!randomSpawnOrder) setNextSideIndex(prev => (prev + step + 4) % 4);
+        setNextPreview([]);
+        setPieces([first, second]);
         return true;
       }
     }
 
-    const scheduledSide = getNextSpawnSide(false);
-    const reverseFallOrder = gameMode === "arcade" && reverseUntil > Date.now();
-    const step = reverseFallOrder ? -1 : 1;
-    const useCursed = pendingCursedPiece || shouldUseCursedPool();
-    for (let attempt = 0; attempt < 80; attempt++) {
-      const first = useCursed ? randomCursedPiece(scheduledSide) : randomPiece(scheduledSide);
-      const second = shouldUseCursedPool()
-        ? randomCursedPiece(oppositeSide(first.side))
-        : randomPiece(oppositeSide(first.side));
-      const overlapEachOther = pieceCells(first).some(a =>
-        pieceCells(second).some(b => a.x === b.x && a.y === b.y)
-      );
-
-      if (
-        overlapsBoard(nextBoard, first) || breachesBarrier(first) ||
-        overlapsBoard(nextBoard, second) || breachesBarrier(second) ||
-        overlapEachOther
-      ) {
-        continue;
-      }
-
-      if (useCursed) setPendingCursedPiece(false);
-      if (!randomSpawnOrder) setNextSideIndex(prev => (prev + step + 4) % 4);
-      setPieces([first, second]);
-      return true;
-    }
+    setFailReason("Dual spawn blocked");
+    setGameOver(true);
     return false;
   }
 
@@ -1545,8 +1538,8 @@ export default function FourDirectionTetris() {
       setBoard(current);
       setAnimating(false);
       maybeSpawnPowerUp(current);
-      if (pendingDualSpawn && gameMode === "arcade" && !spawnDual(current)) {
-        spawn(current);
+      if (pendingDualSpawn && gameMode === "arcade") {
+        spawnDual(current);
       } else if (!pendingDualSpawn || gameMode !== "arcade") {
         spawn(current);
       }
@@ -1952,7 +1945,7 @@ export default function FourDirectionTetris() {
     if (screen !== "playing" || gameOver || paused || animating || pieces.length) return;
     const id = setTimeout(() => {
       if (pendingDualSpawn && gameMode === "arcade") {
-        if (!spawnDual(board)) spawn(board);
+        spawnDual(board);
       } else {
         spawn(board);
       }
