@@ -502,13 +502,22 @@ function PixelIconButton({ type, onClick, color = "#ffffff", ariaLabel }) {
       "1000000",
     ],
     cog: [
-      "1100011",
+      "0100010",
       "1001001",
       "0011100",
       "0110110",
       "0011100",
       "1001001",
-      "1100011",
+      "0100010",
+    ],
+    trophy: [
+      "0000000",
+      "0111110",
+      "0111110",
+      "0011100",
+      "0001000",
+      "0001000",
+      "0011100",
     ],
   };
   const pattern = icons[type] || icons.cog;
@@ -2328,7 +2337,7 @@ export default function FourDirectionTetris() {
               <div style={{ display:'flex', gap:'18px', alignItems:'center', justifyContent:'center', fontSize:0 }}>
                 <PixelIconButton type="play" onClick={startGame} color="#fbbf24" ariaLabel="Play" />
                 <PixelIconButton type="cog" onClick={() => setShowSettings(true)} ariaLabel="Settings" />
-                Build from the centre. Clear 4×4 blocks. Survive the accelerating fall from four directions.
+                <PixelIconButton type="trophy" onClick={() => setShowHighScores(true)} color="#fbbf24" ariaLabel="High Scores" />
               </div>
 
               <div style={{ display:'grid', gap:'8px', justifyItems:'center' }}>
@@ -2389,7 +2398,6 @@ export default function FourDirectionTetris() {
                   {[1,2,3,4,5,6,7,8,9].map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
               </div>
-              <button onClick={() => setShowHighScores(true)} style={{ padding:'10px 18px', borderRadius:'12px', background:'#334155', color:'white', border:'none', cursor:'pointer', fontWeight:700 }}>High Scores</button>
             </div>
           )}
 
