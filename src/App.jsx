@@ -795,6 +795,11 @@ export default function FourDirectionTetris() {
         return;
       }
 
+      if (isFullscreen) {
+        setIsFullscreen(false);
+        return;
+      }
+
       const root = document.documentElement;
       const request =
         root.requestFullscreen ||
@@ -803,11 +808,15 @@ export default function FourDirectionTetris() {
 
       if (request) {
         await request.call(root);
+        setIsFullscreen(true);
         return;
       }
     } catch {
-      // Mobile browsers can reject fullscreen unless triggered by a direct tap.
+      // Mobile browsers can reject fullscreen, so fall back to an app-like fill-screen view.
     }
+
+    setIsFullscreen(true);
+    window.scrollTo?.(0, 0);
   }
 
   function resetToTitle() {
@@ -2370,7 +2379,7 @@ export default function FourDirectionTetris() {
   const colorForPad = position => padLabels[position] === "ROTATE" ? "#fbbf24" : "#f43f5e";
 
   return (
-    <div style={{ minHeight:isFullscreen ? '100dvh' : '100vh', color:'white', display:'flex', alignItems:'center', justifyContent:'center', padding:isFullscreen ? '2px' : '8px', width:'100%', maxWidth:'100vw', overflowX:'hidden', overflowY:'auto', background:'radial-gradient(circle at top, #1e293b 0%, #0f172a 42%, #020617 100%)', fontFamily:'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif', boxSizing:'border-box', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none' }}>
+    <div style={{ position:isFullscreen ? 'fixed' : 'relative', inset:isFullscreen ? 0 : 'auto', zIndex:isFullscreen ? 9999 : 'auto', minHeight:isFullscreen ? '100dvh' : '100vh', height:isFullscreen ? '100dvh' : 'auto', color:'white', display:'flex', alignItems:'center', justifyContent:'center', padding:isFullscreen ? '2px' : '8px', width:isFullscreen ? '100vw' : '100%', maxWidth:'100vw', overflowX:'hidden', overflowY:'auto', background:'radial-gradient(circle at top, #1e293b 0%, #0f172a 42%, #020617 100%)', fontFamily:'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif', boxSizing:'border-box', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none' }}>
       <div style={{ margin:'0 auto', width:'100%', maxWidth:'920px', background:'linear-gradient(180deg, rgba(15,23,42,0.96), rgba(2,6,23,0.98))', border:'1px solid rgba(148,163,184,0.25)', borderRadius:'24px', padding:'12px', boxShadow:'0 30px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06)', boxSizing:'border-box', display:'grid', justifyItems:'center' }}>
         <div style={{ display:'grid', gap:'14px', position:'relative', justifyItems:'center' }}>
           <div style={{ textAlign:'center', minHeight:'52px', paddingTop:'0', display:'grid', alignContent:'center', justifyItems:'center', width:'100%' }}>
