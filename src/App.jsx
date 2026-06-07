@@ -383,13 +383,13 @@ function PixelPadIcon({ type, color = "#e11d48" }) {
       "00000",
     ],
     rotate: [
-      "0011100",
+      "1110100",
       "0110010",
-      "1100001",
-      "1000111",
-      "1000010",
-      "1100100",
-      "0111000",
+      "1010001",
+      "1000001",
+      "1000001",
+      "0100010",
+      "0011100",
     ],
     drop: [
       "00100",
@@ -493,13 +493,13 @@ function PixelTextButton({ label, onClick, color = "#f43f5e" }) {
 function PixelIconButton({ type, onClick, color = "#ffffff", ariaLabel }) {
   const icons = {
     cog: [
-      "0010100",
-      "0111110",
-      "1101011",
+      "0011100",
       "0110110",
-      "1101011",
-      "0111110",
-      "0010100",
+      "1100011",
+      "1001001",
+      "1100011",
+      "0110110",
+      "0011100",
     ],
   };
   const pattern = icons[type] || icons.cog;
