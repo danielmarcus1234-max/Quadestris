@@ -622,6 +622,8 @@ export default function FourDirectionTetris() {
   const [runHighScoreDismissed, setRunHighScoreDismissed] = useState(false);
   const [sessionRunCounts, setSessionRunCounts] = useState({ classic: 0, arcade: 0 });
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showBugReport, setShowBugReport] = useState(false);
+  const [bugReportText, setBugReportText] = useState("");
   const holdDelayRef = useRef(null);
   const holdIntervalRef = useRef(null);
   const runScoreSavedRef = useRef(false);
@@ -949,7 +951,7 @@ export default function FourDirectionTetris() {
           };
         }
 
-        if (roll < 0.985) {
+        if (gameMode !== "cursed" && roll < 0.985) {
           return {
             id: crypto.randomUUID(),
             x,
@@ -2065,6 +2067,30 @@ export default function FourDirectionTetris() {
     }
   }
 
+  function limitWords(value, maxWords = 80) {
+    const words = value.trim().split(/\s+/).filter(Boolean);
+    if (words.length <= maxWords) return value;
+    return words.slice(0, maxWords).join(" ");
+  }
+
+  function handleSendBugReport() {
+    const report = bugReportText.trim();
+    if (!report) return;
+    const subject = "Quadestris bug report";
+    const body = [
+      report,
+      "",
+      `Mode: ${gameMode}`,
+      `Score: ${Math.floor(score)}`,
+      `Level: ${level}`,
+      `Screen: ${screen}${gameOver ? " / game over" : ""}`,
+      `Reason: ${failReason || "n/a"}`
+    ].join("\n");
+    window.location.href = `mailto:danielmarcus1234@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    setShowBugReport(false);
+    setBugReportText("");
+  }
+
   const pixelButtonAssets = {
     title: "/ui/button-title.png",
     restart: "/ui/button-restart.png",
@@ -2398,6 +2424,12 @@ export default function FourDirectionTetris() {
                 <PixelIconButton type="trophy" onClick={() => setShowHighScores(true)} color="#fbbf24" ariaLabel="High Scores" />
                 <PixelIconButton type="fullscreen" onClick={toggleFullscreen} color={isFullscreen ? "#22c55e" : "#ffffff"} ariaLabel={isFullscreen ? "Exit fullscreen" : "Fill screen"} />
               </div>
+              <button
+                onClick={() => setShowBugReport(true)}
+                style={{ padding:'8px 14px', borderRadius:'10px', background:'#1e293b', color:'#cbd5e1', border:'1px solid rgba(148,163,184,0.3)', cursor:'pointer', fontWeight:800 }}
+              >
+                Report Bug
+              </button>
 
               <div style={{ display:'grid', gap:'8px', justifyItems:'center' }}>
                 <div style={{ color:'#94a3b8', fontSize:'11px', letterSpacing:'0.14em', textTransform:'uppercase' }}>Game modes</div>
@@ -2471,6 +2503,7 @@ export default function FourDirectionTetris() {
             <div style={{ display:'flex', gap:'10px', justifyContent:'center', marginTop:'2px' }}>
               <button onClick={startGame} style={{ padding:'8px 14px', borderRadius:'10px', background:'#2563eb', color:'white', border:'none', cursor:'pointer', fontWeight:700 }}>Restart</button>
               <button onClick={resetToTitle} style={{ padding:'8px 14px', borderRadius:'10px', background:'#334155', color:'white', border:'none', cursor:'pointer', fontWeight:700 }}>Title</button>
+              <button onClick={() => setShowBugReport(true)} style={{ padding:'8px 14px', borderRadius:'10px', background:'#1e293b', color:'white', border:'1px solid rgba(148,163,184,0.35)', cursor:'pointer', fontWeight:700 }}>Report Bug</button>
             </div>
           )}
 
@@ -2640,6 +2673,32 @@ export default function FourDirectionTetris() {
                 <input type="checkbox" checked={devMode} onChange={e => setDevMode(e.target.checked)} />
                 Dev mode
               </label>
+            </div>
+          )}
+
+          {showBugReport && (
+            <div style={{ position:'absolute', inset:'20px', zIndex:48, background:'rgba(2,6,23,0.97)', border:'1px solid rgba(148,163,184,0.3)', borderRadius:'18px', padding:'12px', display:'grid', gap:'10px', alignContent:'start', gridAutoRows:'max-content', overflowY:'auto' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div style={{ fontWeight:800, color:'#e2e8f0' }}>Report Bug</div>
+                <button onClick={() => setShowBugReport(false)} style={{ width:'32px', height:'32px', borderRadius:'8px', border:'1px solid rgba(148,163,184,0.3)', background:'#1e293b', color:'white', cursor:'pointer', fontWeight:800 }}>X</button>
+              </div>
+              <textarea
+                value={bugReportText}
+                onChange={e => setBugReportText(limitWords(e.target.value))}
+                placeholder="What went wrong?"
+                rows={7}
+                style={{ width:'100%', resize:'vertical', minHeight:'140px', boxSizing:'border-box', borderRadius:'12px', border:'1px solid rgba(148,163,184,0.35)', background:'#020617', color:'#e2e8f0', padding:'10px', font:'inherit', outline:'none', userSelect:'text', WebkitUserSelect:'text' }}
+              />
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:'10px', fontSize:'12px', color:'#94a3b8' }}>
+                <span>{bugReportText.trim() ? bugReportText.trim().split(/\s+/).length : 0}/80 words</span>
+                <button
+                  onClick={handleSendBugReport}
+                  disabled={!bugReportText.trim()}
+                  style={{ padding:'10px 18px', borderRadius:'12px', background:bugReportText.trim() ? '#2563eb' : '#334155', color:'white', border:'none', cursor:bugReportText.trim() ? 'pointer' : 'default', fontWeight:800 }}
+                >
+                  Send
+                </button>
+              </div>
             </div>
           )}
 
