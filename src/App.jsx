@@ -21,7 +21,7 @@ const HIGH_SCORES_KEY = "quadestris.highScores.v1";
 const SETTINGS_KEY = "quadestris.settings.v1";
 const PLAYER_NAME_KEY = "quadestris.playerName.v1";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://ssfpmrgxpqcuzpsprqrs.supabase.co";
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_FVMm1_mj5WcA6II06dh5mA_4m2D6r3-";
 const LEADERBOARD_TABLE = "leaderboard_scores";
 const MODES_WITH_LEADERBOARDS = ["classic", "arcade", "cursed"];
 
