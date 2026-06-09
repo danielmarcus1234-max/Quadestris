@@ -2402,6 +2402,13 @@ export default function FourDirectionTetris() {
     if (padLabels[position] === "ROTATE") return "rotate";
     return position === "top" ? "up" : position === "bottom" ? "down" : position;
   };
+  const dropIconRotation = () => {
+    const side = pieces[0]?.side || "top";
+    if (side === "bottom") return "rotate(180deg)";
+    if (side === "left") return "rotate(-90deg)";
+    if (side === "right") return "rotate(90deg)";
+    return "rotate(0deg)";
+  };
   const colorForPad = position => padLabels[position] === "ROTATE" ? "#fbbf24" : "#f43f5e";
 
   return (
@@ -2554,7 +2561,9 @@ export default function FourDirectionTetris() {
               onContextMenu={e => e.preventDefault()}
               style={pixelPadButtonStyle}
             >
-              <PixelPadIcon type="drop" color="#fbbf24" />
+              <div style={{ transform:dropIconRotation(), transition:'transform 120ms ease' }}>
+                <PixelPadIcon type="drop" color="#fbbf24" />
+              </div>
             </button>
             <button
               onPointerDown={e => { e.preventDefault(); startHold('right'); }}
