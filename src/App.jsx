@@ -19,6 +19,11 @@ const POWERUP_TURNS = 6;
 const MAX_SCORE_MULTIPLIER = 6;
 const HIGH_SCORES_KEY = "quadestris.highScores.v1";
 const SETTINGS_KEY = "quadestris.settings.v1";
+const PLAYER_NAME_KEY = "quadestris.playerName.v1";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://ssfpmrgxpqcuzpsprqrs.supabase.co";
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+const LEADERBOARD_TABLE = "leaderboard_scores";
+const MODES_WITH_LEADERBOARDS = ["classic", "arcade", "cursed"];
 
 const SHAPES = [
   [[1, 1, 1, 1]],
@@ -580,7 +585,13 @@ export default function FourDirectionTetris() {
   const [board, setBoard] = useState(emptyBoard());
   const [pieces, setPieces] = useState([]);
   const [score, setScore] = useState(0);
-  const [highScores, setHighScores] = useState({ classic: [], arcade: [] });
+  const [highScores, setHighScores] = useState({ classic: [], arcade: [], cursed: [] });
+  const [publicScores, setPublicScores] = useState({ classic: [], arcade: [], cursed: [] });
+  const [publicScoresLoading, setPublicScoresLoading] = useState(false);
+  const [publicScoresError, setPublicScoresError] = useState("");
+  const [publicPlayerName, setPublicPlayerName] = useState("");
+  const [publicSubmitStatus, setPublicSubmitStatus] = useState("");
+  const [publicScoreSubmitted, setPublicScoreSubmitted] = useState(false);
   const [level, setLevel] = useState(1);
   const [selectedLevel, setSelectedLevel] = useState(1);
   const [gameMode, setGameMode] = useState("classic");
@@ -654,14 +665,98 @@ export default function FourDirectionTetris() {
   }
 
   function leaderboardMode(mode = gameMode) {
-    if (mode === "classic") return "classic";
-    if (mode === "arcade") return "arcade";
-    return null;
+    return MODES_WITH_LEADERBOARDS.includes(mode) ? mode : null;
   }
 
   function currentModeTopScore(mode = gameMode) {
     const key = leaderboardMode(mode);
     return key ? (highScores[key]?.[0] || 0) : 0;
+  }
+
+  function supabaseConfigured() {
+    return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+  }
+
+  function publicLeaderboardEndpoint(query = "") {
+    return `${SUPABASE_URL}/rest/v1/${LEADERBOARD_TABLE}${query}`;
+  }
+
+  function supabaseHeaders(extra = {}) {
+    return {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      ...extra
+    };
+  }
+
+  function normalizePlayerName(value) {
+    return value.replace(/\s+/g, " ").trim().slice(0, 16);
+  }
+
+  async function fetchPublicScores() {
+    if (!supabaseConfigured()) {
+      setPublicScoresError("Add your Supabase anon key to enable public scores.");
+      return;
+    }
+
+    setPublicScoresLoading(true);
+    setPublicScoresError("");
+    try {
+      const entries = await Promise.all(MODES_WITH_LEADERBOARDS.map(async mode => {
+        const query = `?select=player_name,score,mode,created_at&mode=eq.${encodeURIComponent(mode)}&order=score.desc&limit=10`;
+        const response = await fetch(publicLeaderboardEndpoint(query), {
+          headers: supabaseHeaders()
+        });
+        if (!response.ok) throw new Error(`Could not load ${mode} scores`);
+        const rows = await response.json();
+        return [mode, Array.isArray(rows) ? rows : []];
+      }));
+      setPublicScores(Object.fromEntries(entries));
+    } catch {
+      setPublicScoresError("Could not load public scores.");
+    } finally {
+      setPublicScoresLoading(false);
+    }
+  }
+
+  async function submitPublicScore() {
+    if (publicScoreSubmitted || publicSubmitStatus === "sending...") return;
+    const key = leaderboardMode(gameMode);
+    const name = normalizePlayerName(publicPlayerName);
+    const scoreValue = Math.floor(runHighScoreValue || score);
+    if (!key || !scoreValue || !name) return;
+    if (!supabaseConfigured()) {
+      setPublicSubmitStatus("Add your Supabase anon key first.");
+      return;
+    }
+
+    setPublicSubmitStatus("sending...");
+    try {
+      const response = await fetch(publicLeaderboardEndpoint(), {
+        method: "POST",
+        headers: supabaseHeaders({
+          "Content-Type": "application/json",
+          Prefer: "return=minimal"
+        }),
+        body: JSON.stringify({
+          player_name: name,
+          score: scoreValue,
+          mode: key
+        })
+      });
+      if (!response.ok) throw new Error("submit failed");
+      try {
+        localStorage.setItem(PLAYER_NAME_KEY, name);
+      } catch {
+        // Ignore storage failures.
+      }
+      setPublicPlayerName(name);
+      setPublicSubmitStatus("submitted");
+      setPublicScoreSubmitted(true);
+      fetchPublicScores();
+    } catch {
+      setPublicSubmitStatus("could not submit");
+    }
   }
 
   function saveRunScore(points, mode = gameMode) {
@@ -701,12 +796,26 @@ export default function FourDirectionTetris() {
         setHighScores({
           classic: Array.isArray(parsed.classic) ? parsed.classic.filter(Number.isFinite).map(n => Math.floor(n)).slice(0, 10) : [],
           arcade: Array.isArray(parsed.arcade) ? parsed.arcade.filter(Number.isFinite).map(n => Math.floor(n)).slice(0, 10) : [],
+          cursed: Array.isArray(parsed.cursed) ? parsed.cursed.filter(Number.isFinite).map(n => Math.floor(n)).slice(0, 10) : [],
         });
       }
     } catch {
       // Ignore storage failures; game still works without persistence.
     }
   }, []);
+
+  useEffect(() => {
+    try {
+      const savedName = localStorage.getItem(PLAYER_NAME_KEY);
+      if (savedName) setPublicPlayerName(normalizePlayerName(savedName));
+    } catch {
+      // Ignore storage failures.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (showHighScores) fetchPublicScores();
+  }, [showHighScores]);
 
   useEffect(() => {
     try {
@@ -847,6 +956,8 @@ export default function FourDirectionTetris() {
     setShowRunHighScoreModal(false);
     setRunHighScoreValue(0);
     setShareCopied(false);
+    setPublicSubmitStatus("");
+    setPublicScoreSubmitted(false);
     setRunHighScoreDismissed(false);
     runScoreSavedRef.current = false;
     setHasExtraLife(false);
@@ -1552,6 +1663,8 @@ export default function FourDirectionTetris() {
     setShowRunHighScoreModal(false);
     setRunHighScoreValue(0);
     setShareCopied(false);
+    setPublicSubmitStatus("");
+    setPublicScoreSubmitted(false);
     setRunHighScoreDismissed(false);
     runScoreSavedRef.current = false;
     setHasExtraLife(false);
@@ -2507,10 +2620,31 @@ export default function FourDirectionTetris() {
           />
 
           {gameOver && (
-            <div style={{ display:'flex', gap:'10px', justifyContent:'center', marginTop:'2px' }}>
-              <button onClick={startGame} style={{ padding:'8px 14px', borderRadius:'10px', background:'#2563eb', color:'white', border:'none', cursor:'pointer', fontWeight:700 }}>Restart</button>
-              <button onClick={resetToTitle} style={{ padding:'8px 14px', borderRadius:'10px', background:'#334155', color:'white', border:'none', cursor:'pointer', fontWeight:700 }}>Title</button>
-              <button onClick={() => setShowBugReport(true)} style={{ padding:'8px 14px', borderRadius:'10px', background:'#1e293b', color:'white', border:'1px solid rgba(148,163,184,0.35)', cursor:'pointer', fontWeight:700 }}>Report Bug</button>
+            <div style={{ display:'grid', gap:'8px', justifyItems:'center', marginTop:'2px' }}>
+              <div style={{ display:'flex', gap:'10px', justifyContent:'center', flexWrap:'wrap' }}>
+                <button onClick={startGame} style={{ padding:'8px 14px', borderRadius:'10px', background:'#2563eb', color:'white', border:'none', cursor:'pointer', fontWeight:700 }}>Restart</button>
+                <button onClick={resetToTitle} style={{ padding:'8px 14px', borderRadius:'10px', background:'#334155', color:'white', border:'none', cursor:'pointer', fontWeight:700 }}>Title</button>
+                <button onClick={() => setShowBugReport(true)} style={{ padding:'8px 14px', borderRadius:'10px', background:'#1e293b', color:'white', border:'1px solid rgba(148,163,184,0.35)', cursor:'pointer', fontWeight:700 }}>Report Bug</button>
+              </div>
+              {leaderboardMode(gameMode) && score > 0 && !showRunHighScoreModal && (
+                <div style={{ display:'flex', gap:'8px', justifyContent:'center', alignItems:'center', flexWrap:'wrap', background:'rgba(15,23,42,0.68)', border:'1px solid rgba(148,163,184,0.18)', borderRadius:'12px', padding:'8px' }}>
+                  <input
+                    value={publicPlayerName}
+                    onChange={e => setPublicPlayerName(normalizePlayerName(e.target.value))}
+                    placeholder="Name"
+                    maxLength={16}
+                    style={{ width:'140px', boxSizing:'border-box', borderRadius:'9px', border:'1px solid rgba(148,163,184,0.35)', background:'#020617', color:'#e2e8f0', padding:'8px', font:'inherit', textAlign:'center', userSelect:'text', WebkitUserSelect:'text' }}
+                  />
+                  <button
+                    onClick={submitPublicScore}
+                    disabled={!publicPlayerName.trim() || publicScoreSubmitted || publicSubmitStatus === "sending..."}
+                    style={{ padding:'8px 12px', borderRadius:'10px', background:publicPlayerName.trim() && !publicScoreSubmitted && publicSubmitStatus !== "sending..." ? '#7c3aed' : '#334155', color:'white', border:'none', cursor:publicPlayerName.trim() && !publicScoreSubmitted && publicSubmitStatus !== "sending..." ? 'pointer' : 'default', fontWeight:800 }}
+                  >
+                    {publicScoreSubmitted ? "Submitted" : "Submit Public Score"}
+                  </button>
+                  <div style={{ minWidth:'80px', fontSize:'12px', color:publicSubmitStatus === "submitted" ? '#86efac' : '#cbd5e1' }}>{publicSubmitStatus}</div>
+                </div>
+              )}
             </div>
           )}
 
@@ -2634,7 +2768,8 @@ export default function FourDirectionTetris() {
                 <div style={{ fontWeight:800, color:'#e2e8f0' }}>High Scores</div>
                 <button onClick={() => setShowHighScores(false)} style={{ width:'32px', height:'32px', borderRadius:'8px', border:'1px solid rgba(148,163,184,0.3)', background:'#1e293b', color:'white', cursor:'pointer', fontWeight:800 }}>X</button>
               </div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'10px', alignItems:'start' }}>
+              <div style={{ fontSize:'12px', color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.12em' }}>Local</div>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(130px, 1fr))', gap:'10px', alignItems:'start' }}>
                 <div style={{ background:'rgba(15,23,42,0.7)', border:'1px solid rgba(148,163,184,0.22)', borderRadius:'12px', padding:'10px', minHeight:'120px' }}>
                   <div style={{ fontWeight:800, marginBottom:'8px' }}>Classic Top 10</div>
                   {(highScores.classic || []).length ? (highScores.classic || []).map((v, i) => (
@@ -2647,6 +2782,33 @@ export default function FourDirectionTetris() {
                     <div key={`arcade-${i}`} style={{ fontSize:'13px', color:'#cbd5e1' }}>{i + 1}. {Math.floor(v)}</div>
                   )) : <div style={{ fontSize:'13px', color:'#64748b' }}>No scores yet</div>}
                 </div>
+                <div style={{ background:'rgba(15,23,42,0.7)', border:'1px solid rgba(148,163,184,0.22)', borderRadius:'12px', padding:'10px', minHeight:'120px' }}>
+                  <div style={{ fontWeight:800, marginBottom:'8px' }}>Cursed Top 10</div>
+                  {(highScores.cursed || []).length ? (highScores.cursed || []).map((v, i) => (
+                    <div key={`cursed-${i}`} style={{ fontSize:'13px', color:'#cbd5e1' }}>{i + 1}. {Math.floor(v)}</div>
+                  )) : <div style={{ fontSize:'13px', color:'#64748b' }}>No scores yet</div>}
+                </div>
+              </div>
+
+              <div style={{ display:'flex', justifyContent:'space-between', gap:'10px', alignItems:'center', marginTop:'4px' }}>
+                <div style={{ fontSize:'12px', color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.12em' }}>Public</div>
+                <button onClick={fetchPublicScores} style={{ padding:'6px 10px', borderRadius:'8px', border:'1px solid rgba(148,163,184,0.3)', background:'#1e293b', color:'#cbd5e1', cursor:'pointer', fontWeight:700 }}>Refresh</button>
+              </div>
+              {publicScoresError && <div style={{ color:'#fca5a5', fontSize:'12px' }}>{publicScoresError}</div>}
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(130px, 1fr))', gap:'10px', alignItems:'start' }}>
+                {MODES_WITH_LEADERBOARDS.map(mode => (
+                  <div key={`public-${mode}`} style={{ background:'rgba(15,23,42,0.7)', border:'1px solid rgba(148,163,184,0.22)', borderRadius:'12px', padding:'10px', minHeight:'120px' }}>
+                    <div style={{ fontWeight:800, marginBottom:'8px', textTransform:'capitalize' }}>{mode} Top 10</div>
+                    {publicScoresLoading ? (
+                      <div style={{ fontSize:'13px', color:'#64748b' }}>Loading...</div>
+                    ) : (publicScores[mode] || []).length ? (publicScores[mode] || []).map((row, i) => (
+                      <div key={`${mode}-${row.created_at || i}`} style={{ fontSize:'13px', color:'#cbd5e1', display:'flex', justifyContent:'space-between', gap:'8px' }}>
+                        <span>{i + 1}. {row.player_name}</span>
+                        <span>{Math.floor(row.score)}</span>
+                      </div>
+                    )) : <div style={{ fontSize:'13px', color:'#64748b' }}>No scores yet</div>}
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -2714,6 +2876,23 @@ export default function FourDirectionTetris() {
           {showRunHighScoreModal && (
             <div style={{ position:'absolute', inset:'20px', zIndex:50, background:'rgba(2,6,23,0.96)', border:'1px solid rgba(34,197,94,0.45)', borderRadius:'18px', padding:'16px', display:'grid', gap:'12px', alignContent:'center', justifyItems:'center' }}>
               <div style={{ fontWeight:900, fontSize:'26px', color:'#22c55e' }}>High Score: {Math.floor(runHighScoreValue)}</div>
+              <div style={{ display:'grid', gap:'8px', width:'min(100%, 320px)' }}>
+                <input
+                  value={publicPlayerName}
+                  onChange={e => setPublicPlayerName(normalizePlayerName(e.target.value))}
+                  placeholder="Name for public board"
+                  maxLength={16}
+                  style={{ width:'100%', boxSizing:'border-box', borderRadius:'10px', border:'1px solid rgba(148,163,184,0.35)', background:'#020617', color:'#e2e8f0', padding:'10px', font:'inherit', textAlign:'center', userSelect:'text', WebkitUserSelect:'text' }}
+                />
+                <button
+                  onClick={submitPublicScore}
+                  disabled={!publicPlayerName.trim() || publicScoreSubmitted || publicSubmitStatus === "sending..."}
+                  style={{ padding:'10px 18px', borderRadius:'12px', background:publicPlayerName.trim() && !publicScoreSubmitted && publicSubmitStatus !== "sending..." ? '#7c3aed' : '#334155', color:'white', border:'none', cursor:publicPlayerName.trim() && !publicScoreSubmitted && publicSubmitStatus !== "sending..." ? 'pointer' : 'default', fontWeight:700 }}
+                >
+                  {publicScoreSubmitted ? "Submitted" : "Submit Public Score"}
+                </button>
+                <div style={{ minHeight:'18px', fontSize:'13px', color:publicSubmitStatus === "submitted" ? '#86efac' : '#cbd5e1' }}>{publicSubmitStatus}</div>
+              </div>
               <div style={{ display:'flex', gap:'10px' }}>
                 <button onClick={handleShareHighScore} style={{ padding:'10px 18px', borderRadius:'12px', background:'#16a34a', color:'white', border:'none', cursor:'pointer', fontWeight:700 }}>Share</button>
                 <button onClick={() => { setRunHighScoreDismissed(true); setShowRunHighScoreModal(false); }} style={{ padding:'10px 18px', borderRadius:'12px', background:'#334155', color:'white', border:'none', cursor:'pointer', fontWeight:700 }}>Continue</button>
