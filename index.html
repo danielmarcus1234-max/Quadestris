@@ -5,9 +5,50 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>quadestris</title>
+    <script>
+      function showBootError(message) {
+        var root = document.getElementById("root");
+        if (!root) {
+          window.__quadestrisBootError = message;
+          return;
+        }
+        root.innerHTML = '<div class="boot-message">Quadestris could not start.<br />' + message + '</div>';
+      }
+      window.addEventListener("error", function (event) {
+        showBootError(event.message || "Script failed to load.");
+      }, true);
+      window.addEventListener("unhandledrejection", function () {
+        showBootError("A startup promise failed.");
+      });
+    </script>
+    <style>
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: #020617;
+      }
+      #root {
+        min-height: 100vh;
+      }
+      .boot-message {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        color: #e2e8f0;
+        font: 700 18px system-ui, sans-serif;
+        text-align: center;
+        padding: 24px;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><div class="boot-message">Loading Quadestris...</div></div>
+    <script>
+      if (window.__quadestrisBootError) {
+        showBootError(window.__quadestrisBootError);
+      }
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

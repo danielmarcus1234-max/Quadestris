@@ -24,6 +24,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://ssfpmrgxpqcuz
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_FVMm1_mj5WcA6II06dh5mA_4m2D6r3-";
 const LEADERBOARD_TABLE = "leaderboard_scores";
 const MODES_WITH_LEADERBOARDS = ["classic", "arcade", "cursed"];
+const SUPPORT_URL = "https://buymeacoffee.com/quadestris";
 
 const SHAPES = [
   [[1, 1, 1, 1]],
@@ -851,16 +852,16 @@ export default function FourDirectionTetris() {
       ref.current = audio;
     };
 
-    initSfx(pickupSfxRef, "/audio/pickuppowerup.wav", 0.65);
-    initSfx(cursedPickupSfxRef, "/audio/pickupcursedpowerup.wav", 0.72);
-    initSfx(clearSfxRef, "/audio/cleara4by4.wav", 0.78);
-    initSfx(placePieceSfxRef, "/audio/placeapiece.wav", 0.68);
-    initSfx(levelUpSfxRef, "/audio/level up.wav", 0.78);
-    initSfx(explosionSfxRef, "/audio/explosion.wav", 0.82);
-    initSfx(missileFireSfxRef, "/audio/missilefiring.wav", 0.8);
-    initSfx(gameOverSfxRef, "/audio/gameover.wav", 0.82);
-    initSfx(extraLifeSfxRef, "/audio/extra life.wav", 0.82);
-    initSfx(highScoreSfxRef, "/audio/high score.wav", 0.86);
+    initSfx(pickupSfxRef, "./audio/pickuppowerup.wav", 0.65);
+    initSfx(cursedPickupSfxRef, "./audio/pickupcursedpowerup.wav", 0.72);
+    initSfx(clearSfxRef, "./audio/cleara4by4.wav", 0.78);
+    initSfx(placePieceSfxRef, "./audio/placeapiece.wav", 0.68);
+    initSfx(levelUpSfxRef, "./audio/level up.wav", 0.78);
+    initSfx(explosionSfxRef, "./audio/explosion.wav", 0.82);
+    initSfx(missileFireSfxRef, "./audio/missilefiring.wav", 0.8);
+    initSfx(gameOverSfxRef, "./audio/gameover.wav", 0.82);
+    initSfx(extraLifeSfxRef, "./audio/extra life.wav", 0.82);
+    initSfx(highScoreSfxRef, "./audio/high score.wav", 0.86);
   }, []);
 
   useEffect(() => {
@@ -2205,11 +2206,11 @@ export default function FourDirectionTetris() {
   }
 
   const pixelButtonAssets = {
-    title: "/ui/button-title.png",
-    restart: "/ui/button-restart.png",
-    pause: "/ui/button-pause.png",
-    resume: "/ui/button-resume.png",
-    highscores: "/ui/button-highscores.png",
+    title: "./UI/button-title.png",
+    restart: "./UI/button-restart.png",
+    pause: "./UI/button-pause.png",
+    resume: "./UI/button-resume.png",
+    highscores: "./UI/button-highscores.png",
   };
 
   function pixelButtonStyle(asset, fallback) {
@@ -2544,12 +2545,20 @@ export default function FourDirectionTetris() {
                 <PixelIconButton type="trophy" onClick={() => setShowHighScores(true)} color="#fbbf24" ariaLabel="High Scores" />
                 <PixelIconButton type="fullscreen" onClick={toggleFullscreen} color={isFullscreen ? "#22c55e" : "#ffffff"} ariaLabel={isFullscreen ? "Exit fullscreen" : "Fill screen"} />
               </div>
-              <button
-                onClick={() => setShowBugReport(true)}
-                style={{ padding:'8px 14px', borderRadius:'10px', background:'#1e293b', color:'#cbd5e1', border:'1px solid rgba(148,163,184,0.3)', cursor:'pointer', fontWeight:800 }}
-              >
-                Report Bug
-              </button>
+              <div style={{ display:'flex', gap:'10px', justifyContent:'center', flexWrap:'wrap' }}>
+                <button
+                  onClick={() => window.open(SUPPORT_URL, "_blank", "noopener,noreferrer")}
+                  style={{ padding:'8px 14px', borderRadius:'10px', background:'#854d0e', color:'white', border:'1px solid rgba(250,204,21,0.45)', cursor:'pointer', fontWeight:800 }}
+                >
+                  Support The Game
+                </button>
+                <button
+                  onClick={() => setShowBugReport(true)}
+                  style={{ padding:'8px 14px', borderRadius:'10px', background:'#1e293b', color:'#cbd5e1', border:'1px solid rgba(148,163,184,0.3)', cursor:'pointer', fontWeight:800 }}
+                >
+                  Report Bug
+                </button>
+              </div>
 
               <div style={{ display:'grid', gap:'8px', justifyItems:'center' }}>
                 <div style={{ color:'#94a3b8', fontSize:'11px', letterSpacing:'0.14em', textTransform:'uppercase' }}>Game modes</div>
@@ -2624,6 +2633,7 @@ export default function FourDirectionTetris() {
               <div style={{ display:'flex', gap:'10px', justifyContent:'center', flexWrap:'wrap' }}>
                 <button onClick={startGame} style={{ padding:'8px 14px', borderRadius:'10px', background:'#2563eb', color:'white', border:'none', cursor:'pointer', fontWeight:700 }}>Restart</button>
                 <button onClick={resetToTitle} style={{ padding:'8px 14px', borderRadius:'10px', background:'#334155', color:'white', border:'none', cursor:'pointer', fontWeight:700 }}>Title</button>
+                <button onClick={() => window.open(SUPPORT_URL, "_blank", "noopener,noreferrer")} style={{ padding:'8px 14px', borderRadius:'10px', background:'#854d0e', color:'white', border:'1px solid rgba(250,204,21,0.45)', cursor:'pointer', fontWeight:700 }}>Support The Game</button>
                 <button onClick={() => setShowBugReport(true)} style={{ padding:'8px 14px', borderRadius:'10px', background:'#1e293b', color:'white', border:'1px solid rgba(148,163,184,0.35)', cursor:'pointer', fontWeight:700 }}>Report Bug</button>
               </div>
               {leaderboardMode(gameMode) && score > 0 && !showRunHighScoreModal && (
@@ -2759,6 +2769,12 @@ export default function FourDirectionTetris() {
               style={pixelButtonStyle(pixelButtonAssets.highscores, { padding:'10px 18px', minWidth:'102px', borderRadius:'12px', background:'#1e293b', color:'white', border:'1px solid rgba(148,163,184,0.35)', cursor:'pointer', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation' })}
             >
               High Scores
+            </button>
+            <button
+              onClick={() => window.open(SUPPORT_URL, "_blank", "noopener,noreferrer")}
+              style={pixelButtonStyle(null, { padding:'10px 18px', minWidth:'128px', borderRadius:'12px', background:'#854d0e', color:'white', border:'1px solid rgba(250,204,21,0.45)', cursor:'pointer', userSelect:'none', WebkitUserSelect:'none', WebkitTouchCallout:'none', touchAction:'manipulation', fontWeight:800 })}
+            >
+              Support The Game
             </button>
           </div>
 
